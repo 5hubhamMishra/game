@@ -1,4 +1,7 @@
 {
   "files": [],
-  "references": [{ "path": "./packages/game-core" }]
+  "references": [
+    { "path": "./packages/game-core" },
+    { "path": "./packages/content" }
+  ]
 }

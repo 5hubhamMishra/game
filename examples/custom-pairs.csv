@@ -1,0 +1,11 @@
+# Between Words — custom pair list.
+# One pair per line: wordA,wordB,category,difficulty
+# category and difficulty are optional (default: custom, medium).
+# difficulty must be easy, medium or hard. Order within a pair does not matter.
+wordA,wordB,category,difficulty
+Spanner,Wrench,tools,easy
+Hammer,Mallet,tools,easy
+Nail,Screw,tools,easy
+Sketch,Painting,art,medium
+Novel,Novella,books,medium
+Podcast,Audiobook,media,easy
