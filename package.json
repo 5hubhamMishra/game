@@ -1,0 +1,24 @@
+{
+  "name": "between-words",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "content:validate": "tsx packages/content/src/validate.ts",
+    "verify": "npm run typecheck && npm run content:validate && npm run test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  }
+}
