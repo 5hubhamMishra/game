@@ -84,11 +84,34 @@ export interface CustomPairResult {
 
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 
-/**
- * Parses `wordA,wordB,category,difficulty` rows. Rejects bad rows individually
- * rather than failing the whole file, so one typo does not discard a list a
- * host spent time on. Quoting and embedded commas are not supported.
- */
+function parseCsvRow(text: string): string[] | undefined {
+  const cells: string[] = []
+  let cell = ''
+  let quoted = false
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+    if (char === '"') {
+      if (quoted && text[i + 1] === '"') {
+        cell += '"'
+        i++
+      } else {
+        quoted = !quoted
+      }
+    } else if (char === ',' && !quoted) {
+      cells.push(cell.trim())
+      cell = ''
+    } else {
+      cell += char
+    }
+  }
+
+  if (quoted) return undefined
+  cells.push(cell.trim())
+  return cells
+}
+
+/** Parses CSV rows and rejects bad rows individually. */
 export function parseCustomPairs(csv: string, locale = DEFAULT_LOCALE): CustomPairResult {
   const pairs: CatalogPair[] = []
   const issues: CustomPairIssue[] = []
@@ -99,7 +122,8 @@ export function parseCustomPairs(csv: string, locale = DEFAULT_LOCALE): CustomPa
     const text = raw.trim()
     if (text === '' || text.startsWith('#')) return
 
-    const cells = text.split(',').map((cell) => cell.trim())
+    const cells = parseCsvRow(text)
+    if (!cells) return void issues.push({ line, code: 'BAD_COLUMNS' })
     if (index === 0 && normalizeWord(cells[0] ?? '') === 'worda') return
     if (cells.length < 2 || cells.length > 4) return void issues.push({ line, code: 'BAD_COLUMNS' })
 

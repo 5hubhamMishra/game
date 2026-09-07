@@ -75,6 +75,12 @@ describe('custom pairs', () => {
     expect(pairs[0]!.difficulty).toBe('medium')
   })
 
+  it('parses quoted fields and embedded commas', () => {
+    const { pairs, issues } = parseCustomPairs('"Salt, fine",Pepper,"food, pantry",easy')
+    expect(issues).toEqual([])
+    expect(pairs[0]).toMatchObject({ wordA: 'Salt, fine', wordB: 'Pepper', category: 'food, pantry' })
+  })
+
   it('reports bad rows without discarding good ones', () => {
     const { pairs, issues } = parseCustomPairs(
       ['Salt,Pepper', 'Solo', 'Tea,tea', 'Ice,Snow,cold,extreme', 'salt,PEPPER'].join('\n'),

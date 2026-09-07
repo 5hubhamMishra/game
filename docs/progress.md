@@ -66,15 +66,15 @@ renumbers the catalog. `CONTENT_VERSION` is snapshotted by a running game so a
 catalog update cannot alter a pair mid-round.
 
 Custom host lists parse from `wordA,wordB,category,difficulty` CSV
-(`examples/custom-pairs.csv`). Bad rows are reported per line rather than
-failing the whole file, and custom pairs are tagged `custom:<version>` so they
-cannot be confused with reviewed content. Quoting and embedded commas are not
-supported.
+(`examples/custom-pairs.csv`), including quoted fields and embedded commas.
+Bad rows are reported per line rather than failing the whole file, and custom
+pairs are tagged `custom:<version>` so they cannot be confused with reviewed
+content.
 
 Validation actually run:
 
     NODE_ENV=development npx tsc -b                            # exit 0
-    NODE_ENV=development npx vitest run                        # 63 passed (63)
+    NODE_ENV=development npx vitest run                        # 64 passed (64)
     NODE_ENV=development npx tsx packages/content/src/validate.ts
     # ✓ 500 pairs across 10 categories (expansion milestone: 1000)
 
