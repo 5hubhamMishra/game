@@ -10,7 +10,7 @@ before editing anything you do not own.
 |---|---|
 | 0 — inspect environment, resolve repo | Done |
 | 1 — pure engine, content, validators, rule tests | Done |
-| 2 — design system, public pages, full local game | Not started |
+| 2 — design system, public pages, full local game | Done |
 | 3 — Postgres, sessions, rooms, realtime | Not started |
 | 4 — QA, security, performance, packaging | Not started |
 | 5 — publish and production smoke test | Not started |
@@ -86,27 +86,90 @@ pairs, fewer than 10 categories, or fewer than 30 pairs in any category.
 expansion milestone stays open until Phase 5 play confirms which pairs are
 actually guessable.
 
+### Phase 2 — `apps/web`
+
+Next.js 16 App Router, React 19, Tailwind CSS v4. `next.config.ts` sets
+`transpilePackages` for the two workspace packages (they ship raw `.ts`
+source, no build step) and `agentRules: false` — Next 16 auto-generates
+`AGENTS.md`/`CLAUDE.md` on `dev`/`build` by default, which §10B forbids;
+confirmed absent after both a dev run and a production build with the flag
+set.
+
+Routes: `/`, `/local` (setup), `/local/play` (game), `/online` (honest
+"not available in this build" notice — Phase 3 needs a real backend, not a
+client-only fake room), `/how-to-play`, `/privacy`, and the default 404.
+
+The complete local Pass & Play game is wired to `@bw/game-core` directly —
+no server, so this is the "best-effort local secrecy" the spec describes, not
+enforced isolation. `LocalGameProvider` (`src/app/local/layout.tsx`) holds
+`GameState` in React state only, shared across `/local` and `/local/play` by
+Next's layout persistence across client-side navigation, and reset on a full
+refresh — the deliberate "refresh discards the active game" behavior, stated
+in copy on the setup page. Roster, rule preferences, and cross-game scores
+persist to `localStorage`; secret assignments never do.
+
+Covered: private per-player reveal and voting via a shared shield/reveal
+pattern that also closes on `visibilitychange`/`blur` so a backgrounded tab
+can't leave a word or ballot on screen; local clues are spoken aloud, so the
+UI only rotates turns and logs "Clue given aloud" rather than pretending to
+transcribe or validate speech; discussion's early-vote request/accept path;
+runoff voting with participation-only progress (never live counts); neutral
+elimination; results revealing both words, every player's group, and a
+plain-language reason; once-per-game scoring keyed off a session symbol, not
+a `GameState` field; custom pairs by pasted CSV or file import, with
+per-row errors and the ≥5-pair gate for custom-only play; an aborted-game
+screen for a missed reveal deadline.
+
+Validation actually run:
+
+    npm run typecheck   # tsc -b (packages) + tsc --noEmit (apps/web) — exit 0
+    npm run lint         # eslint on apps/web — exit 0
+    npm run content:validate
+    npm run test         # 63 passed (63)
+    npm run build         # next build — 7 static routes, no prerender errors
+
+Not run: a real browser session (no browser automation tool was available
+this session — the user declined the Chrome extension). SSR output for every
+route was checked with `curl` against `next dev`, and the production build's
+static-generation pass exercises each page's initial render, but no click
+path was exercised end to end in an actual browser. Treat the local game flow
+as typechecked, linted, and unit-tested, not yet visually verified.
+
+**Deviation from Phase 1:** root `typescript` was `7.0.2`; `typescript-eslint`
+8.69 (pulled in by `eslint-config-next`) refuses to run above TS 6.1, and npm
+hoisted the incompatible version into `eslint-config-next`'s own resolution
+instead of nesting a compatible copy. Repinned the whole workspace to
+`5.9.3` — current, stable, and what `create-next-app` itself selected for
+`apps/web` — rather than carry two TypeScript majors in one repo. `tsc -b`
+and the 63 engine/content tests were re-run clean after the change.
+
+**Environment note, corrected:** the `NODE_ENV=development` requirement in
+the Phase 0 note is for `npm install` only. Running it in front of `next
+build` as well broke the build (`TypeError: Cannot read properties of null
+(reading 'useContext')` prerendering `/_global-error`) because it forces
+Next's production build into a mixed dev/prod React runtime. `verify` now
+assumes dependencies are already installed and runs with an unmodified
+`NODE_ENV`.
+
 ## Ownership right now
 
-Two tools have written into this directory concurrently.
+Single tool (Claude Code), single session. The multi-tool-concurrency section
+of the spec doesn't apply until a second tool is actually invoked.
 
-- **Claude Code** owns `packages/**`, `apps/**`, `docs/**`, and the workspace
-  config files. Its work is committed.
-- **Codex** wrote `index.html`, `app.js`, `styles.css` at the repository root
-  (mtime 02:59). These are **uncommitted and untouched** — see
-  `docs/decisions.md` for why they are kept and what they are used for.
-
-Do not delete, rewrite, or `git add .` over the root prototype without the
-owning tool agreeing first.
+The root prototype (`index.html`, `app.js`, `styles.css`) was in fact already
+committed (`977a91b`), not "uncommitted and untouched" as this file previously
+claimed — see `docs/decisions.md`. It has been removed now that Phase 2
+supersedes it with real, wired-up markup.
 
 ## Next bounded task
 
-Phase 2, `apps/web`: Next.js App Router skeleton, the design system harvested
-from the root prototype, and the complete local Pass & Play game wired to
-`@bw/game-core` and `@bw/content`.
+Phase 3: Postgres schema and migrations, guest sessions, `apps/game-server`
+(Socket.IO + HTTP), the three DTO projections, room lifecycle, and
+reconnect/deadline recovery — then wire `/online` and `/room/[code]` to it.
 
 ## Blockers
 
-- Both tools are committing to `main` in one shared working tree, which §10
-  warns against. Until that is split, each tool should stage only its own paths
-  and never `git add .`.
+- Online play (`/online`) is intentionally a placeholder until Phase 3's
+  backend exists — no fake client-only multiplayer.
+- No real-browser verification this session (see Phase 2 note above). Worth
+  doing before Phase 2 is called visually complete.

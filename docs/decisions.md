@@ -2,24 +2,53 @@
 
 Meaningful deviations and choices, with the reason. Newest first.
 
-## Codex's root prototype is kept as a design reference, not as the app
+## Root prototype removed now that Phase 2 supersedes it
 
-`index.html`, `app.js` and `styles.css` at the repository root were written by
-Codex while the engine was being built. They are a **static visual prototype**:
-the word is hardcoded (`state.word = 'Cappuccino'` for every player), clues come
-from a fixed three-item array, and votes are never tallied. There is no role
-assignment, so the game's central secret does not exist in them.
+This file previously said `index.html`/`app.js`/`styles.css` were kept
+uncommitted as a design reference. Checking git history directly (`git log
+--oneline -- index.html`) showed they were in fact already committed in
+`977a91b`, so the earlier note was stale — a concrete instance of the spec's
+own warning not to trust a progress note over the actual repository state.
 
-They cannot ship as the product — §9 forbids placeholder content in required
-flows and mock gameplay presented as working. They are also genuinely useful:
-the visual language, spacing, copy tone and the palette applied to real markup
-are a solid starting point for the Phase 2 design system.
+Their design tokens (ivory/ink/teal/amber palette, DM Sans + Space Grotesk,
+16–20px card radii) are now in `apps/web`'s Tailwind theme and layout, and the
+real game they only mocked (hardcoded word, fixed clue list, no tally) is
+built and wired to `@bw/game-core`. Keeping the static files around after that
+is just a second, non-functional copy of the same screens, so they were
+removed (`git rm`) as part of the Phase 2 commit rather than left to rot.
 
-Decision: keep the files untouched and uncommitted, harvest the design tokens
-and copy into the real Next.js implementation during Phase 2, and delete them
-only once Phase 2 supersedes them **and** the owning tool agrees. §10 forbids
-overwriting another tool's uncommitted edits, and a progress note is explicitly
-not a mutex.
+## Repinned workspace TypeScript from 7.0.2 to 5.9.3
+
+`tsc -b` on `packages/**` was clean under TS 7.0.2 (Phase 1), but adding
+`apps/web` surfaced the real problem: `eslint-config-next` depends on
+`typescript-eslint` 8.69, which hard-refuses to run above TypeScript 6.1.
+`npm install` hoisted the incompatible 7.0.2 into that dependency's own
+resolution instead of nesting a compatible copy, so linting failed outright
+rather than as a warning. §6 asks for "current mutually compatible stable
+releases" — a compiler the required lint tooling can't run under fails that
+regardless of how well it worked in isolation for Phase 1. Repinned the whole
+workspace to `5.9.3` (current stable, and what `create-next-app` itself chose
+for `apps/web`'s own `"typescript": "^5"`) rather than run two majors in one
+repo. Re-verified: `tsc -b` and all 63 engine/content tests still pass.
+
+## Local mode has no typed clue text, by design
+
+§3 says local clues are spoken aloud and explicitly warns against claiming
+automatic speech validation. The engine's `submitClue` still needs some
+string to validate and record, so the local UI turn control calls it with a
+fixed `"Clue given aloud"` string rather than exposing a text field. The clue
+log shows that phrase instead of pretending to transcribe what was actually
+said — the alternative (a text input players don't really need to fill in
+honestly) would invite exactly the fake-validation the spec warns about.
+
+## Private local screens close on tab/window blur, not just navigation
+
+§4 requires that private cards not briefly expose words during exit or
+remount, and §3's reconnect-closing rule for online reveal has an obvious
+local analogue: if the device holder gets distracted and switches apps while
+a word or ballot is on screen, someone else at the table could see it.
+`useShieldStage` resets to the shield on `visibilitychange` and `blur`, not
+only when the current player changes.
 
 ## npm workspaces instead of pnpm or Turborepo
 
