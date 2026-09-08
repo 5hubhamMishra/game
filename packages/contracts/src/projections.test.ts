@@ -25,10 +25,13 @@ describe('wire projections', () => {
     expect(selfView).not.toHaveProperty('pairId')
   })
   it('requires results to be terminal and explicit', () => {
-    expect(resultsViewSchema.parse({
+    const result = resultsViewSchema.parse({
       roomCode: 'ABC123', revision: 8, phase: 'RESULTS', wordA: 'Purse', wordB: 'Wallet', majorityWord: 'Purse',
       assignments: [{ playerId: 'p1', word: 'Purse', group: 'majority' }], tallies: [], winner: 'majority',
       reason: 'ALL_MINORITY_ELIMINATED', scores: { p1: 1 },
-    }).phase).toBe('RESULTS')
+      ballots: [{ voterId: 'p1', targetId: 'p2' }],
+    })
+    expect(result.phase).toBe('RESULTS')
+    expect(result).not.toHaveProperty('ballots')
   })
 })
