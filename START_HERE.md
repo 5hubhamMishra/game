@@ -37,3 +37,4 @@ has not received a live multi-browser smoke test in this environment.
 - Configure Vercel and the persistent backend with separate explicit
   preview/production origins before claiming online production readiness.
 - Set Vercel's `NEXT_PUBLIC_GAME_SERVER_URL` to the configured backend URL.
+- Review [docs/SECURITY.md](docs/SECURITY.md) before exposing online mode.
