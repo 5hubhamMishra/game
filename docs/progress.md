@@ -11,7 +11,7 @@ before editing anything you do not own.
 | 0 — inspect environment, resolve repo | Done |
 | 1 — pure engine, content, validators, rule tests | Done |
 | 2 — design system, public pages, full local game | Done |
-| 3 — Postgres, sessions, rooms, realtime | Not started |
+| 3 — Postgres, sessions, rooms, realtime | In progress |
 | 4 — QA, security, performance, packaging | Not started |
 | 5 — publish and production smoke test | Not started |
 
@@ -164,8 +164,9 @@ supersedes it with real, wired-up markup.
 ## Next bounded task
 
 Phase 3: Postgres schema and migrations, guest sessions, `apps/game-server`
-(Socket.IO + HTTP), the three DTO projections, room lifecycle, and
-reconnect/deadline recovery — then wire `/online` and `/room/[code]` to it.
+(Socket.IO + HTTP), room lifecycle, and reconnect/deadline recovery — then wire
+`/online` and `/room/[code]` to it. Contracts are now defined in
+`packages/contracts`.
 
 ## Blockers
 

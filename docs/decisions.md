@@ -2,6 +2,15 @@
 
 Meaningful deviations and choices, with the reason. Newest first.
 
+## Contracts are explicit allowlisted projections
+
+Phase 3 starts with `@bw/contracts`, which defines Zod schemas for
+`PublicRoomView`, `SelfView`, `ResultsView`, and socket action envelopes. The
+server will construct these views instead of serializing internal game state
+and deleting secret fields afterward. Self snapshots keep the word `null`
+until an explicit private reveal request; assignments and both words exist
+only in terminal results.
+
 ## Root prototype removed now that Phase 2 supersedes it
 
 This file previously said `index.html`/`app.js`/`styles.css` were kept
