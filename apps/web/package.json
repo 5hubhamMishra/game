@@ -13,7 +13,7 @@
     "@bw/content": "*",
     "@bw/contracts": "*",
     "@bw/game-core": "*",
-    "next": "16.3.4",
+    "next": "^16.4.0-canary.20",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "socket.io-client": "^4.8.1"
@@ -24,7 +24,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "^16.4.0-canary.20",
     "tailwindcss": "^4",
     "typescript": "5.9.3"
   }
