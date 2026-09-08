@@ -15,5 +15,11 @@ try {
   console.log('✓ npm')
 } catch { console.log('✗ npm') }
 console.log(`${existsSync('docker-compose.yml') ? '✓' : '✗'} docker-compose.yml`)
-console.log('Docker is optional for local mode; it is required for the online server database.')
+let dockerOk = false
+try {
+  execFileSync('docker', ['--version'], { stdio: 'ignore', shell: process.platform === 'win32' })
+  dockerOk = true
+  console.log('✓ Docker')
+} catch { console.log('✗ Docker (optional for local mode)') }
+console.log(`${dockerOk ? 'Docker is available' : 'Docker is unavailable'}; it is required for the online server database.`)
 if (checks.some(([, ok]) => !ok) || !npmOk) process.exitCode = 1
