@@ -13,6 +13,17 @@ describe('wire projections', () => {
   it('keeps a self word opt-in and never needs the alternative word', () => {
     expect(selfViewSchema.parse({ ...room, self: { playerId: 'p1', acknowledged: false, word: null } }).self.word).toBeNull()
   })
+  it('strips secret fields from non-terminal projections', () => {
+    const raw = { ...room, minorityWord: 'Wallet', minorityIds: ['p1'], pairId: 'secret-pair' }
+    const publicView = publicRoomViewSchema.parse(raw)
+    const selfView = selfViewSchema.parse({ ...raw, self: { playerId: 'p1', acknowledged: false, word: null } })
+    expect(publicView).not.toHaveProperty('minorityWord')
+    expect(publicView).not.toHaveProperty('minorityIds')
+    expect(publicView).not.toHaveProperty('pairId')
+    expect(selfView).not.toHaveProperty('minorityWord')
+    expect(selfView).not.toHaveProperty('minorityIds')
+    expect(selfView).not.toHaveProperty('pairId')
+  })
   it('requires results to be terminal and explicit', () => {
     expect(resultsViewSchema.parse({
       roomCode: 'ABC123', revision: 8, phase: 'RESULTS', wordA: 'Purse', wordB: 'Wallet', majorityWord: 'Purse',
