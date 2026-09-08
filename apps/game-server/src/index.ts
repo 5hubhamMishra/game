@@ -364,9 +364,12 @@ io.on('connection', (socket) => {
     const roomCode = [...socket.rooms].find((room) => room !== socket.id)
     if (!roomCode) return acknowledge({ ok: false, code: 'ROOM_REQUIRED' })
     const client = await pool.connect()
-    try {
-      await client.query('begin')
-      const receipt = await client.query('select 1 from action_receipts where room_code=$1 and player_id=$2 and event_id=$3', [roomCode, playerId, parsed.data.eventId])
+      try {
+        await client.query('begin')
+        const roomState = await client.query<{ status: string }>('select status from rooms where code=$1 and expires_at>now() for update', [roomCode])
+        if (!roomState.rows[0]) { await client.query('rollback'); return acknowledge({ ok: false, code: 'ROOM_NOT_FOUND' }) }
+        if (roomState.rows[0].status !== 'LOBBY') { await client.query('rollback'); return acknowledge({ ok: false, code: 'WRONG_PHASE' }) }
+        const receipt = await client.query('select 1 from action_receipts where room_code=$1 and player_id=$2 and event_id=$3', [roomCode, playerId, parsed.data.eventId])
       if (!receipt.rows[0]) {
         const updated = await client.query(
           'update memberships set ready=$1, last_seen_at=now() where room_code=$2 and player_id=$3 returning 1',
