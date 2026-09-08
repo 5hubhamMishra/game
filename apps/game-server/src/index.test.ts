@@ -10,5 +10,7 @@ describe('game server boundary', () => {
     const { socketActions } = await import('@bw/contracts')
     expect(socketActions.joinRoom.safeParse({ eventId: 'event-123456789012', roomCode: 'ABC234' }).success).toBe(true)
     expect(socketActions.revealWord.safeParse({ eventId: 'event-123456789012' }).success).toBe(true)
+    expect(socketActions.removeMember.safeParse({ eventId: 'event-123456789012', playerId: 'player-2' }).success).toBe(true)
+    expect(socketActions.removeMember.safeParse({ eventId: 'event-123456789012', playerId: '' }).success).toBe(false)
   })
 })
