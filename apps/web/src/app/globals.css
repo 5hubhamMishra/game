@@ -11,8 +11,8 @@
   --color-card: #fffdf9;
   --color-danger: #b3261e;
   --color-danger-bg: #fdecea;
-  --font-sans: var(--font-dm-sans), system-ui, sans-serif;
-  --font-display: var(--font-space-grotesk), var(--font-dm-sans), system-ui, sans-serif;
+  --font-sans: system-ui, sans-serif;
+  --font-display: ui-sans-serif, system-ui, sans-serif;
 }
 
 @media (prefers-reduced-motion: reduce) {
