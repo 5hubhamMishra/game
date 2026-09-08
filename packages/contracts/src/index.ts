@@ -80,6 +80,7 @@ export const socketActions = {
   joinRoom: actionEnvelopeSchema.extend({ roomCode: z.string().regex(/^[A-Z2-9]{6}$/) }),
   setReady: actionEnvelopeSchema.extend({ ready: z.boolean() }),
   setSettings: actionEnvelopeSchema.extend({ minorityCount: z.number().int().min(1).max(3) }),
+  removeMember: actionEnvelopeSchema.extend({ playerId: z.string().min(1) }),
   revealWord: actionEnvelopeSchema,
   getResults: actionEnvelopeSchema,
   acknowledgeWord: actionEnvelopeSchema,

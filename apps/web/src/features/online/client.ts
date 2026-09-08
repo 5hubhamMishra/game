@@ -64,6 +64,7 @@ function emitWithAck(socket: Socket, event: string, payload: unknown, timeoutMs 
 export type RoomHandle = {
   setReady: (ready: boolean) => Promise<void>;
   setSettings: (minorityCount: number) => Promise<void>;
+  removeMember: (playerId: string) => Promise<void>;
   startGame: () => Promise<void>;
   revealWord: () => Promise<SelfView | null>;
   acknowledgeWord: () => Promise<void>;
@@ -101,6 +102,7 @@ export function connectToRoom(
     onError: (code: string) => void;
     onActionError?: (code: string) => void;
     onConnectionChange?: (connected: boolean) => void;
+    onRemoved?: () => void;
   },
 ): RoomHandle {
   const socket = io(SERVER_URL, { withCredentials: true, transports: ["websocket", "polling"] });
@@ -139,6 +141,7 @@ export function connectToRoom(
 
   socket.on("roomSnapshot", accept);
   socket.on("roomResults", acceptResults);
+  socket.on("removedFromRoom", () => handlers.onRemoved?.());
   socket.on("connect_error", () => {
     if (!joinedOnce) handlers.onError("CONNECTION_FAILED");
   });
@@ -153,6 +156,11 @@ export function connectToRoom(
     async setSettings(minorityCount: number) {
       const result = await emitWithAck(socket, "setSettings", { eventId: eventId(), minorityCount });
       if (!result.ok || !result.room) return reportActionError(result.code ?? "SETTINGS_FAILED");
+      accept(result.room);
+    },
+    async removeMember(playerId: string) {
+      const result = await emitWithAck(socket, "removeMember", { eventId: eventId(), playerId });
+      if (!result.ok || !result.room) return reportActionError(result.code ?? "REMOVE_FAILED");
       accept(result.room);
     },
     async startGame() {

@@ -46,6 +46,8 @@ const ACTION_ERROR_MESSAGES: Record<string, string> = {
   CANCEL_FAILED: "Could not cancel the game.",
   INVALID_MINORITY_COUNT: "That minority count does not fit this roster.",
   SETTINGS_FAILED: "Could not update game settings.",
+  INVALID_MEMBER: "That player could not be removed.",
+  REMOVE_FAILED: "Could not remove that player.",
   ORIGIN_NOT_ALLOWED: "This site is not allowed to use the game server.",
 };
 
@@ -106,6 +108,12 @@ export function RoomLobby({ code }: { code: string }) {
             if (cancelled) return;
             setError(errorCode);
             setStatus("error");
+          },
+          onRemoved: () => {
+            if (!cancelled) {
+              setError("You were removed from this room.");
+              setStatus("error");
+            }
           },
           onActionError: (errorCode) => {
             if (!cancelled) setActionMessage(ACTION_ERROR_MESSAGES[errorCode] ?? errorCode);
@@ -171,7 +179,7 @@ export function RoomLobby({ code }: { code: string }) {
   }
 
   return (
-    <LobbyView
+      <LobbyView
       code={code}
       room={room}
       selfId={playerId}
@@ -187,6 +195,7 @@ export function RoomLobby({ code }: { code: string }) {
         void socketRef.current?.startGame();
       }}
       onSettings={(count) => void socketRef.current?.setSettings(count)}
+      onRemove={(id) => void socketRef.current?.removeMember(id)}
     />
   );
 }
@@ -237,6 +246,7 @@ function LobbyView({
   onToggleReady,
   onStart,
   onSettings,
+  onRemove,
 }: {
   code: string;
   room: PublicRoomView;
@@ -246,6 +256,7 @@ function LobbyView({
   onToggleReady: () => void;
   onStart: () => void;
   onSettings: (count: number) => void;
+  onRemove: (id: string) => void;
 }) {
   const self = room.players.find((p) => p.id === selfId);
   const isHost = room.hostId === selfId;
@@ -299,9 +310,9 @@ function LobbyView({
                 {player.id === room.hostId ? " (host)" : ""}
                 {!player.connected ? " · offline" : ""}
               </span>
-              <span className={player.ready ? "font-semibold text-teal" : "text-muted"}>
+              <span className="flex items-center gap-2"><span className={player.ready ? "font-semibold text-teal" : "text-muted"}>
                 {player.ready ? "Ready" : "Not ready"}
-              </span>
+              </span>{isHost && player.id !== selfId && <button type="button" className="text-xs text-danger underline" onClick={() => { if (window.confirm(`Remove ${player.name} from this room?`)) onRemove(player.id); }}>Remove</button>}</span>
             </li>
           ))}
         </ul>

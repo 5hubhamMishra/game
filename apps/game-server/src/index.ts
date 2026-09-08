@@ -397,6 +397,24 @@ io.on('connection', (socket) => {
         if (!room || !room.members.some((member) => member.id === playerId)) {
           await client.query('rollback'); return acknowledge({ ok: false, code: 'MEMBERSHIP_REQUIRED' })
         }
+        if (action === 'removeMember') {
+          const targetId = (parsed.data as { playerId?: string }).playerId
+          if (playerId !== room.hostId) { await client.query('rollback'); return acknowledge({ ok: false, code: 'NOT_HOST' }) }
+          if (room.secret.game || !targetId || targetId === room.hostId || !room.members.some((member) => member.id === targetId)) {
+            await client.query('rollback'); return acknowledge({ ok: false, code: room.secret.game ? 'WRONG_PHASE' : 'INVALID_MEMBER' })
+          }
+          const members = room.members.filter((member) => member.id !== targetId)
+          const revision = room.revision + 1
+          const view = publicView(roomCode, room.hostId, revision, members, room.secret)
+          await client.query('delete from memberships where room_code=$1 and player_id=$2', [roomCode, targetId])
+          await client.query('update rooms set revision=$1, public_view=$2 where code=$3', [revision, view, roomCode])
+          await client.query('insert into action_receipts (room_code, player_id, event_id) values ($1,$2,$3)', [roomCode, playerId, parsed.data.eventId])
+          await client.query('commit')
+          for (const peer of await io.in(roomCode).fetchSockets()) if (peer.data.playerId === targetId) { peer.emit('removedFromRoom'); peer.disconnect(true) }
+          acknowledge({ ok: true, room: view })
+          io.to(roomCode).emit('roomSnapshot', view)
+          return
+        }
         if (action === 'revealWord') {
           await client.query('commit')
           return acknowledge({ ok: true, room: publicView(roomCode, room.hostId, room.revision, room.members, room.secret), self: selfView(roomCode, room.hostId, room.revision, room.members, room.secret, playerId, true) })
