@@ -44,6 +44,8 @@ const ACTION_ERROR_MESSAGES: Record<string, string> = {
   RATE_LIMITED: "Slow down a little before sending another message.",
   EARLY_VOTE_FAILED: "Could not update the early-vote request.",
   CANCEL_FAILED: "Could not cancel the game.",
+  INVALID_MINORITY_COUNT: "That minority count does not fit this roster.",
+  SETTINGS_FAILED: "Could not update game settings.",
   ORIGIN_NOT_ALLOWED: "This site is not allowed to use the game server.",
 };
 
@@ -184,6 +186,7 @@ export function RoomLobby({ code }: { code: string }) {
         setActionMessage(null);
         void socketRef.current?.startGame();
       }}
+      onSettings={(count) => void socketRef.current?.setSettings(count)}
     />
   );
 }
@@ -233,6 +236,7 @@ function LobbyView({
   actionMessage,
   onToggleReady,
   onStart,
+  onSettings,
 }: {
   code: string;
   room: PublicRoomView;
@@ -241,6 +245,7 @@ function LobbyView({
   actionMessage: string | null;
   onToggleReady: () => void;
   onStart: () => void;
+  onSettings: (count: number) => void;
 }) {
   const self = room.players.find((p) => p.id === selfId);
   const isHost = room.hostId === selfId;
@@ -307,6 +312,8 @@ function LobbyView({
           {self.ready ? "Not ready" : "I'm ready"}
         </Button>
       )}
+
+      {isHost && <Card className="mt-6"><label className="text-xs font-bold uppercase tracking-wide text-muted" htmlFor="minority-count">Minority players</label><select id="minority-count" value={room.settings.minorityCount} onChange={(event) => onSettings(Number(event.target.value))} className="mt-2 w-full rounded-xl border border-line bg-transparent px-4 py-2.5">{[1, 2, 3].filter((count) => 2 * count < room.players.length).map((count) => <option key={count} value={count}>{count}</option>)}</select><p className="mt-2 text-sm text-muted">The host can change this before starting.</p></Card>}
 
       <Card className="mt-6 text-left">
         <p className="text-sm text-muted">{isHost ? "Start when everyone is ready." : "Waiting on the host to start."}</p>

@@ -37,7 +37,7 @@ function allowHttpRequest(ip: string, now: number, limit: number) {
   httpRequests.set(ip, [...recent, now])
   return true
 }
-type SecretState = { game: GameState | null; discussion: DiscussionMessage[]; recentPairIds?: string[]; scores?: Record<string, number> }
+type SecretState = { game: GameState | null; discussion: DiscussionMessage[]; recentPairIds?: string[]; scores?: Record<string, number>; minorityCount?: number }
 const emptySecret: SecretState = { game: null, discussion: [], recentPairIds: [], scores: {} }
 function json(response: import('node:http').ServerResponse, status: number, body: unknown) {
   response.writeHead(status, {
@@ -98,7 +98,7 @@ function publicView(code: string, hostId: string, revision: number, members: Arr
   const game = secret.game
   const eliminated = new Set(game?.eliminated ?? [])
   return publicRoomViewSchema.parse({
-    roomCode: code, hostId, phase: game?.phase ?? 'LOBBY', revision,
+    roomCode: code, hostId, phase: game?.phase ?? 'LOBBY', revision, settings: { minorityCount: game?.settings.minorityCount ?? secret.minorityCount ?? 1 },
     players: members.map((member) => ({ ...member, eliminated: eliminated.has(member.id) })),
     clues: game?.clues ?? [], discussion: secret.discussion, deadline: game?.deadline ?? null,
     voting: game?.phase === 'VOTING' ? { round: game.votingRound, submitted: game.ballots.length, eligible: activePlayers(game).length } : null,
@@ -145,7 +145,7 @@ function applyGameAction(roomCode: string, action: string, playerId: string, pay
     if (playerId !== room.hostId) throw new Error('NOT_HOST')
     if (game && !['RESULTS', 'ABORTED'].includes(game.phase)) throw new Error('ALREADY_STARTED')
     if (room.members.length < 3 || room.members.some((member) => member.id !== room.hostId && !member.ready)) throw new Error('NOT_ALL_READY')
-    const settings = { ...DEFAULT_SETTINGS, minorityCount: 1 }
+    const settings = { ...DEFAULT_SETTINGS, minorityCount: room.secret.minorityCount ?? 1 }
     const recentPairIds = room.secret.recentPairIds ?? []
     const pair = pickPair(ctx.rng, { difficulties: settings.difficulties, excludeIds: recentPairIds })
       ?? pickPair(ctx.rng, { difficulties: settings.difficulties })
@@ -155,6 +155,12 @@ function applyGameAction(roomCode: string, action: string, playerId: string, pay
   if (action === 'cancelGame') {
     if (playerId !== room.hostId || !game) throw new Error('NOT_HOST')
     return { ...room.secret, game: abortGame(game) }
+  }
+  if (action === 'setSettings') {
+    if (playerId !== room.hostId || game) throw new Error('NOT_HOST')
+    const minorityCount = Number(payload.minorityCount)
+    if (!Number.isInteger(minorityCount) || minorityCount < 1 || minorityCount > Math.min(3, Math.floor((room.members.length - 1) / 2))) throw new Error('INVALID_MINORITY_COUNT')
+    return { ...room.secret, minorityCount }
   }
   if (action === 'requestRematch') {
     if (!game || !['RESULTS', 'ABORTED'].includes(game.phase)) throw new Error('WRONG_PHASE')
@@ -273,7 +279,7 @@ const http = createServer(async (request, response) => {
         for (let attempt = 0; attempt < 5; attempt++) {
           try {
             await client.query('insert into rooms (code, host_id, revision, public_view) values ($1,$2,0,$3)', [code, member.rows[0].player_id, {
-              roomCode: code, hostId: member.rows[0].player_id, phase: 'LOBBY', revision: 0,
+              roomCode: code, hostId: member.rows[0].player_id, phase: 'LOBBY', revision: 0, settings: { minorityCount: 1 },
               players: [], clues: [], discussion: [], deadline: null, voting: null, earlyVoteRequest: null,
             }])
             break

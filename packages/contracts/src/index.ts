@@ -33,6 +33,7 @@ export const publicRoomViewSchema = z.object({
   hostId: z.string().min(1),
   phase: phaseSchema,
   revision: z.number().int().nonnegative(),
+  settings: z.object({ minorityCount: z.number().int().min(1).max(3) }).default({ minorityCount: 1 }),
   players: z.array(publicPlayerSchema),
   clues: z.array(publicClueSchema),
   discussion: z.array(discussionMessageSchema),
@@ -78,6 +79,7 @@ export const actionEnvelopeSchema = z.object({
 export const socketActions = {
   joinRoom: actionEnvelopeSchema.extend({ roomCode: z.string().regex(/^[A-Z2-9]{6}$/) }),
   setReady: actionEnvelopeSchema.extend({ ready: z.boolean() }),
+  setSettings: actionEnvelopeSchema.extend({ minorityCount: z.number().int().min(1).max(3) }),
   revealWord: actionEnvelopeSchema,
   getResults: actionEnvelopeSchema,
   acknowledgeWord: actionEnvelopeSchema,

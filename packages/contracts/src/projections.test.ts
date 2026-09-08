@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { publicRoomViewSchema, resultsViewSchema, selfViewSchema } from './index.ts'
 
 const room = {
-  roomCode: 'ABC123', hostId: 'p1', phase: 'CLUES' as const, revision: 4,
+  roomCode: 'ABC123', hostId: 'p1', phase: 'CLUES' as const, revision: 4, settings: { minorityCount: 1 },
   players: [{ id: 'p1', name: 'Alex', ready: true, connected: true, eliminated: false }],
   clues: [{ cycle: 1, playerId: 'p1', text: 'Warm' }], discussion: [], deadline: null,
   voting: null, earlyVoteRequest: null,

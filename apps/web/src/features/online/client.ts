@@ -63,6 +63,7 @@ function emitWithAck(socket: Socket, event: string, payload: unknown, timeoutMs 
 
 export type RoomHandle = {
   setReady: (ready: boolean) => Promise<void>;
+  setSettings: (minorityCount: number) => Promise<void>;
   startGame: () => Promise<void>;
   revealWord: () => Promise<SelfView | null>;
   acknowledgeWord: () => Promise<void>;
@@ -147,6 +148,11 @@ export function connectToRoom(
     async setReady(ready: boolean) {
       const result = await emitWithAck(socket, "setReady", { eventId: eventId(), ready });
       if (!result.ok || !result.room) return reportActionError(result.code ?? "SET_READY_FAILED");
+      accept(result.room);
+    },
+    async setSettings(minorityCount: number) {
+      const result = await emitWithAck(socket, "setSettings", { eventId: eventId(), minorityCount });
+      if (!result.ok || !result.room) return reportActionError(result.code ?? "SETTINGS_FAILED");
       accept(result.room);
     },
     async startGame() {
