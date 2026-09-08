@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: between-words-game-server
+    runtime: node
+    rootDir: apps/game-server
+    buildCommand: npm install --include=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false

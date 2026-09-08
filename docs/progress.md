@@ -166,11 +166,18 @@ supersedes it with real, wired-up markup.
 Phase 3: Postgres schema and migrations, guest sessions, `apps/game-server`
 (Socket.IO + HTTP), room lifecycle, and reconnect/deadline recovery — then wire
 `/online` and `/room/[code]` to it. Contracts are now defined in
-`packages/contracts`.
+`packages/contracts`. The current bounded implementation adds the contracts,
+initial PostgreSQL schema, guest-session/room HTTP skeleton, Socket.IO service
+entry point, Compose file, and Render Blueprint. Authenticated socket actions,
+durable game transitions, projections from authoritative state, and reconnect
+recovery remain open.
 
 ## Blockers
 
 - Online play (`/online`) is intentionally a placeholder until Phase 3's
   backend exists — no fake client-only multiplayer.
+- Docker is not installed on this machine, so PostgreSQL-backed `/health` and
+  room creation could not be smoke-tested locally. The server typecheck and
+  service test pass; `/health` returns 500 when `DATABASE_URL` is unavailable.
 - No real-browser verification this session (see Phase 2 note above). Worth
   doing before Phase 2 is called visually complete.

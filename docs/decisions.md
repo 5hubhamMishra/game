@@ -11,6 +11,14 @@ and deleting secret fields afterward. Self snapshots keep the word `null`
 until an explicit private reveal request; assignments and both words exist
 only in terminal results.
 
+## Phase 3 starts with one PostgreSQL-backed service
+
+`apps/game-server` uses Node HTTP plus Socket.IO and keeps room/public state in
+PostgreSQL. The initial migration stores hashed guest sessions, room revisions,
+memberships, and action receipts. Docker Compose supplies the local database;
+the service does not silently fall back to an in-memory multiplayer room when
+the database is unavailable.
+
 ## Root prototype removed now that Phase 2 supersedes it
 
 This file previously said `index.html`/`app.js`/`styles.css` were kept
