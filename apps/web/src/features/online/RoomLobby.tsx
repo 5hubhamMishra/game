@@ -43,6 +43,7 @@ const ACTION_ERROR_MESSAGES: Record<string, string> = {
   CONTAINS_OWN_WORD: "A clue can't contain your own word.",
   RATE_LIMITED: "Slow down a little before sending another message.",
   EARLY_VOTE_FAILED: "Could not update the early-vote request.",
+  CANCEL_FAILED: "Could not cancel the game.",
   ORIGIN_NOT_ALLOWED: "This site is not allowed to use the game server.",
 };
 
@@ -360,6 +361,7 @@ function OnlineGame({
       <p className="sr-only" aria-live="polite">Phase: {room.phase.replaceAll("_", " ")}{connected ? "" : ". Reconnecting."}</p>
       <p className="text-center text-xs font-bold uppercase tracking-wide text-muted">{room.phase}</p>
       <h1 className="mt-2 text-center font-display text-3xl font-bold">Room {room.roomCode}</h1>
+      {room.hostId === selfId && !["RESULTS", "ABORTED"].includes(room.phase) && <Button className="mt-4 w-full" variant="secondary" onClick={() => { if (window.confirm("Cancel this game for everyone? No points will be awarded.")) void handle.cancelGame(); }}>Cancel game</Button>}
       {room.phase === "PRIVATE_REVEAL" && (
         <Card className="mt-6 text-center">
           {self?.self.word ? <><p className="text-sm text-muted">Your word</p><p className="mt-3 font-display text-4xl font-bold">{self.self.word}</p><Button className="mt-6 w-full" onClick={() => void send(() => handle.acknowledgeWord())}>Hide and continue</Button></> : <Button className="w-full" onClick={async () => setMessage((await handle.revealWord()) ? "Word revealed. Keep it private." : "Could not reveal the word.")}>Reveal my word</Button>}

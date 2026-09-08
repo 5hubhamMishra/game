@@ -72,6 +72,7 @@ export type RoomHandle = {
   acceptEarlyVote: () => Promise<void>;
   submitVote: (targetId: string | null) => Promise<void>;
   continueFromResolution: () => Promise<void>;
+  cancelGame: () => Promise<void>;
   requestRematch: () => Promise<void>;
   disconnect: () => void;
 };
@@ -196,6 +197,11 @@ export function connectToRoom(
       if (!result.ok || !result.room) return reportActionError(result.code ?? "CONTINUE_FAILED");
       accept(result.room);
       if (result.results) acceptResults(result.results);
+    },
+    async cancelGame() {
+      const result = await emitWithAck(socket, "cancelGame", { eventId: eventId() });
+      if (!result.ok || !result.room) return reportActionError(result.code ?? "CANCEL_FAILED");
+      accept(result.room);
     },
     async requestRematch() {
       const result = await emitWithAck(socket, "requestRematch", { eventId: eventId() });
