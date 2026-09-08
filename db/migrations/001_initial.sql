@@ -24,9 +24,10 @@ create table if not exists memberships (
   ready boolean not null default false,
   connected boolean not null default false,
   joined_at timestamptz not null default now(),
-  primary key (room_code, player_id),
-  unique (room_code, lower(display_name))
+  primary key (room_code, player_id)
 );
+create unique index if not exists memberships_room_code_lower_name_key
+  on memberships (room_code, lower(display_name));
 create table if not exists action_receipts (
   room_code char(6) references rooms(code) on delete cascade,
   player_id text not null,
@@ -34,3 +35,6 @@ create table if not exists action_receipts (
   created_at timestamptz not null default now(),
   primary key (room_code, player_id, event_id)
 );
+
+alter table memberships add column if not exists last_seen_at timestamptz not null default now();
+alter table rooms add column if not exists terminal_at timestamptz;

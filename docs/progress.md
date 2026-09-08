@@ -12,7 +12,7 @@ before editing anything you do not own.
 | 1 — pure engine, content, validators, rule tests | Done |
 | 2 — design system, public pages, full local game | Done |
 | 3 — Postgres, sessions, rooms, realtime | In progress |
-| 4 — QA, security, performance, packaging | Not started |
+| 4 — QA, security, performance, packaging | In progress |
 | 5 — publish and production smoke test | Not started |
 
 ## Completed
@@ -153,8 +153,21 @@ assumes dependencies are already installed and runs with an unmodified
 
 ## Ownership right now
 
-Single tool (Claude Code), single session. The multi-tool-concurrency section
-of the spec doesn't apply until a second tool is actually invoked.
+Phase 4 packaging is now present: `START_HERE.md`, `.env.example`,
+`docs/OPERATIONS.md`, `scripts/setup.mjs`, `scripts/doctor.mjs`, and the
+least-privilege `.github/workflows/ci.yml` workflow. `npm run doctor` and
+`npm run verify` pass locally; Docker remains unavailable for the database
+smoke path.
+
+Two tools, same shared working tree, no branch/worktree isolation between
+them (per the multi-tool-concurrency section of the spec): Codex owns
+`apps/game-server`, `db/migrations`, and `packages/contracts`; Claude Code
+built the `apps/web` online lobby UI (`/online`, `/room/[code]`) against the
+HTTP/socket surface Codex has already shipped, touching only
+`apps/web/**` plus additive-only edits to `apps/web/next.config.ts` and
+`apps/web/package.json` (new `@bw/contracts` and `socket.io-client`
+dependencies). Neither tool has committed yet — check `git status`/`git diff`
+before editing either side's files.
 
 The root prototype (`index.html`, `app.js`, `styles.css`) was in fact already
 committed (`977a91b`), not "uncommitted and untouched" as this file previously
@@ -167,15 +180,26 @@ Phase 3: Postgres schema and migrations, guest sessions, `apps/game-server`
 (Socket.IO + HTTP), room lifecycle, and reconnect/deadline recovery — then wire
 `/online` and `/room/[code]` to it. Contracts are now defined in
 `packages/contracts`. The current bounded implementation adds the contracts,
-initial PostgreSQL schema, guest-session/room HTTP skeleton, Socket.IO service
-entry point, Compose file, and Render Blueprint. Authenticated socket actions,
-durable game transitions, projections from authoritative state, and reconnect
-recovery remain open.
+initial PostgreSQL schema, guest-session/room HTTP endpoints, authenticated
+Socket.IO room join and ready actions, locked/idempotent gameplay actions
+persisted through the deterministic engine, explicit private word reveal
+  snapshots, deadline recovery, terminal results, and rematch handling. Full
+  end-to-end verification remains open.
 
 ## Blockers
 
-- Online play (`/online`) is intentionally a placeholder until Phase 3's
-  backend exists — no fake client-only multiplayer.
+- `apps/web`'s `/online` and `/room/[code]` now do the real room round trip
+  (create/join a room, guest session, roster, ready toggle) against
+  `apps/game-server`'s HTTP + socket surface — no more client-only fake room.
+  The room page now wires the core reveal, clue, discussion, voting, and
+  resolution actions. Client code:
+  `apps/web/src/features/online/{client,storage}.ts`,
+  `{JoinForm,RoomLobby}.tsx`. Verified: `npm run typecheck`/`lint`/`test`/
+  `build` all pass with the new `@bw/contracts` + `socket.io-client`
+  dependencies; SSR of both routes checked with `curl` against `next dev`
+  (200s, no console errors). **Not verified**: an actual join/ready round trip
+  against a running `apps/game-server` — Docker is still not installed on this
+  machine, so there is no live server to point it at locally.
 - Docker is not installed on this machine, so PostgreSQL-backed `/health` and
   room creation could not be smoke-tested locally. The server typecheck and
   service test pass; `/health` returns 500 when `DATABASE_URL` is unavailable.

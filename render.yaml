@@ -2,9 +2,9 @@ services:
   - type: web
     name: between-words-game-server
     runtime: node
-    rootDir: apps/game-server
-    buildCommand: npm install --include=dev
-    startCommand: npm start
+    rootDir: .
+    buildCommand: npm ci --include=dev
+    startCommand: npm run start -w apps/game-server
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL

@@ -2,6 +2,7 @@
   "name": "between-words",
   "private": true,
   "type": "module",
+  "packageManager": "npm@10.9.8",
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -10,6 +11,11 @@
     "node": ">=22"
   },
   "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "phase-publish": "node scripts/phase-publish.mjs",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
     "dev": "npm run dev -w apps/web",
     "build": "npm run build -w apps/web",
     "typecheck": "tsc -b && npm run typecheck -w apps/web",

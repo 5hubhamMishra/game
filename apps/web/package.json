@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@bw/content": "*",
+    "@bw/contracts": "*",
     "@bw/game-core": "*",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@bw/game-core", "@bw/content"],
+  transpilePackages: ["@bw/game-core", "@bw/content", "@bw/contracts"],
   // Repository policy forbids assistant-instruction files (AGENTS.md, CLAUDE.md, ...).
   agentRules: false,
   async headers() {

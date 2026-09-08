@@ -2,6 +2,41 @@
 
 Meaningful deviations and choices, with the reason. Newest first.
 
+## `apps/web`'s online lobby stops at the lobby, on purpose
+
+`/online` and `/room/[code]` do a real round trip against `apps/game-server`
+(guest session, create/join a room, live roster, ready toggle over the
+socket) — no client-only fake room, per §4/§10's standing rule against faking
+capability the backend doesn't have. It deliberately goes no further: once
+`startGame`/durable transitions and a private self (word) projection exist
+server-side, both host and guest currently see an explicit "starting the game
+isn't wired up yet" note instead of a game screen that would have nothing
+real to show. Building clue/discussion/voting screens ahead of that server
+work would mean coding against a contract still being written concurrently by
+another tool in this same tree — likely to need rework, and indistinguishable
+from the fake-room shortcut this project explicitly rejects.
+
+## Guest identity is cached client-side, not re-derived from the cookie
+
+`POST /sessions` mints a new guest identity (and session cookie) every time
+it's called, so the browser client caches the returned `playerId` in
+`localStorage` (`apps/web/src/features/online/storage.ts`) and only calls
+`/sessions` when that cache is empty. The alternative — always calling
+`/sessions` on load — would silently mint a fresh throwaway identity on every
+visit even though the 30-day session cookie from a prior visit is still
+valid, since JS cannot read an `HttpOnly` cookie to check first.
+
+## Reconnects are socket.io's built-in behavior, not hand-rolled
+
+`socket.io-client` reconnects and re-fires `connect` on its own after a
+transient drop, and the lobby's `joinRoom` handshake happens inside that same
+`connect` handler — so a dropped connection self-heals (rejoins, refreshes
+the roster) without any custom retry logic. The client only adds a
+non-blocking "Reconnecting…" indicator (`onConnectionChange`); it does not
+treat a mid-lobby disconnect as the same failure as a join that never
+succeeded (bad room code, no membership), which still surfaces as a hard
+error.
+
 ## Contracts are explicit allowlisted projections
 
 Phase 3 starts with `@bw/contracts`, which defines Zod schemas for

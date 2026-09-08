@@ -26,6 +26,7 @@ export const discussionMessageSchema = z.object({
   text: z.string().max(280),
   createdAt: z.number().int().nonnegative(),
 })
+export type DiscussionMessage = z.infer<typeof discussionMessageSchema>
 
 export const publicRoomViewSchema = z.object({
   roomCode: z.string().length(6),
@@ -75,7 +76,10 @@ export const actionEnvelopeSchema = z.object({
 })
 
 export const socketActions = {
+  joinRoom: actionEnvelopeSchema.extend({ roomCode: z.string().regex(/^[A-Z2-9]{6}$/) }),
   setReady: actionEnvelopeSchema.extend({ ready: z.boolean() }),
+  revealWord: actionEnvelopeSchema,
+  getResults: actionEnvelopeSchema,
   acknowledgeWord: actionEnvelopeSchema,
   submitClue: actionEnvelopeSchema.extend({ text: z.string().trim().min(1).max(40) }),
   postDiscussion: actionEnvelopeSchema.extend({ text: z.string().trim().min(1).max(280) }),
@@ -85,6 +89,7 @@ export const socketActions = {
   startGame: actionEnvelopeSchema,
   cancelGame: actionEnvelopeSchema,
   requestRematch: actionEnvelopeSchema,
+  continueFromResolution: actionEnvelopeSchema,
 } as const
 
 export type SocketActionName = keyof typeof socketActions
