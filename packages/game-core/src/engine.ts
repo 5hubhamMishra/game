@@ -12,13 +12,18 @@ import {
 
 // ---------------------------------------------------------------- setup rules
 
+export const MIN_PLAYERS = 4
+export const MAX_PLAYERS = 10
+
 /** Largest K satisfying the 2K < N rule, capped at three minority players. */
 export function maxMinorityCount(playerCount: number): number {
   return Math.min(3, Math.floor((playerCount - 1) / 2))
 }
 
 export function assertValidSetup(playerCount: number, minorityCount: number): void {
-  if (playerCount < 3) throw new EngineError('INVALID_ROSTER', 'A game needs at least 3 players.')
+  if (playerCount < MIN_PLAYERS || playerCount > MAX_PLAYERS) {
+    throw new EngineError('INVALID_ROSTER', `A game needs ${MIN_PLAYERS} to ${MAX_PLAYERS} players.`)
+  }
   if (!Number.isInteger(minorityCount) || minorityCount < 1) {
     throw new EngineError('INVALID_MINORITY_COUNT', 'At least one minority player is required.')
   }

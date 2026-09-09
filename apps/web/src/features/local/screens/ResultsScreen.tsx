@@ -9,7 +9,7 @@ import { useLocalGame } from "../LocalGameContext";
 const REASON_TEXT: Record<WinReasonCode, string> = {
   ALL_MINORITY_ELIMINATED: "every minority player was eliminated.",
   MINORITY_REACHED_PARITY: "the minority reached parity with the surviving majority.",
-  MINORITY_SURVIVED_CYCLE_LIMIT: "the minority survived all five deduction cycles.",
+  MINORITY_SURVIVED_CYCLE_LIMIT: "the minority survived the deduction cycle limit.",
 };
 
 export function ResultsScreen() {

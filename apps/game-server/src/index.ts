@@ -4,7 +4,7 @@ import { Pool } from 'pg'
 import { Server } from 'socket.io'
 import { pickPair } from '@bw/content'
 import {
-  DEFAULT_SETTINGS, abortGame, acceptEarlyVote, acknowledgeWord, activePlayers,
+  DEFAULT_SETTINGS, MAX_PLAYERS, MIN_PLAYERS, abortGame, acceptEarlyVote, acknowledgeWord, activePlayers,
   advanceFromResolution, requestEarlyVote, secureRng, settleOverdue, startGame,
   isMinority, submitClue, submitVote, winningPlayers, wordFor, type EngineContext, type GameState,
 } from '@bw/game-core'
@@ -15,7 +15,7 @@ const origin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000'
 const secureCookies = process.env.NODE_ENV === 'production' ? '; Secure' : ''
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-const MAX_ONLINE_PLAYERS = 16
+const MAX_ONLINE_PLAYERS = MAX_PLAYERS
 const discussionPosts = new Map<string, number[]>()
 const httpRequests = new Map<string, number[]>()
 
@@ -98,7 +98,7 @@ function publicView(code: string, hostId: string, revision: number, members: Arr
   const game = secret.game
   const eliminated = new Set(game?.eliminated ?? [])
   return publicRoomViewSchema.parse({
-    roomCode: code, hostId, phase: game?.phase ?? 'LOBBY', revision, settings: { minorityCount: game?.settings.minorityCount ?? secret.minorityCount ?? 1 },
+    roomCode: code, hostId, phase: game?.phase ?? 'LOBBY', cycle: game?.cycle ?? null, maxCycles: game?.settings.maxCycles ?? DEFAULT_SETTINGS.maxCycles, revision, settings: { minorityCount: game?.settings.minorityCount ?? secret.minorityCount ?? 1 },
     players: members.map((member) => ({ ...member, eliminated: eliminated.has(member.id) })),
     clues: game?.clues ?? [], discussion: secret.discussion, deadline: game?.deadline ?? null,
     voting: game?.phase === 'VOTING' ? { round: game.votingRound, submitted: game.ballots.length, eligible: activePlayers(game).length } : null,
@@ -144,7 +144,7 @@ function applyGameAction(roomCode: string, action: string, playerId: string, pay
   if (action === 'startGame') {
     if (playerId !== room.hostId) throw new Error('NOT_HOST')
     if (game && !['RESULTS', 'ABORTED'].includes(game.phase)) throw new Error('ALREADY_STARTED')
-    if (room.members.length < 3 || room.members.some((member) => member.id !== room.hostId && !member.ready)) throw new Error('NOT_ALL_READY')
+    if (room.members.length < MIN_PLAYERS || room.members.length > MAX_PLAYERS || room.members.some((member) => member.id !== room.hostId && !member.ready)) throw new Error('NOT_ALL_READY')
     const settings = { ...DEFAULT_SETTINGS, minorityCount: room.secret.minorityCount ?? 1 }
     const recentPairIds = room.secret.recentPairIds ?? []
     const pair = pickPair(ctx.rng, { difficulties: settings.difficulties, excludeIds: recentPairIds })
@@ -279,7 +279,7 @@ const http = createServer(async (request, response) => {
         for (let attempt = 0; attempt < 5; attempt++) {
           try {
             await client.query('insert into rooms (code, host_id, revision, public_view) values ($1,$2,0,$3)', [code, member.rows[0].player_id, {
-              roomCode: code, hostId: member.rows[0].player_id, phase: 'LOBBY', revision: 0, settings: { minorityCount: 1 },
+              roomCode: code, hostId: member.rows[0].player_id, phase: 'LOBBY', cycle: null, maxCycles: DEFAULT_SETTINGS.maxCycles, revision: 0, settings: { minorityCount: 1 },
               players: [], clues: [], discussion: [], deadline: null, voting: null, earlyVoteRequest: null,
             }])
             break
@@ -442,7 +442,9 @@ io.on('connection', (socket) => {
         if (action === 'requestRematch') {
           room.members = room.members.map((member) => member.id === playerId ? { ...member, ready: true } : member)
           await client.query('update memberships set ready=true, last_seen_at=now() where room_code=$1 and player_id=$2', [roomCode, playerId])
-          next = room.members.every((member) => member.ready) ? { ...emptySecret, recentPairIds: room.secret.recentPairIds ?? [] } : room.secret
+          next = room.members.every((member) => member.ready)
+            ? { ...emptySecret, recentPairIds: room.secret.recentPairIds ?? [], scores: room.secret.scores ?? {} }
+            : room.secret
         } else {
           next = applyGameAction(roomCode, action, playerId, parsed.data, room, ctx)
         }

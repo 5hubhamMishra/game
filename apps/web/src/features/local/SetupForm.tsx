@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, filterPairs } from "@bw/content";
-import { maxMinorityCount, normalizeWord, type Difficulty } from "@bw/game-core";
+import { MAX_PLAYERS, MIN_PLAYERS, maxMinorityCount, normalizeWord, type Difficulty } from "@bw/game-core";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { useLocalGame } from "./LocalGameContext";
@@ -42,9 +42,9 @@ export function SetupForm() {
   const router = useRouter();
   const { roster, prefs, start } = useLocalGame();
   const [names, setNames] = useState<RosterEntry[]>(() =>
-    roster.length >= 3
+    roster.length >= MIN_PLAYERS
       ? roster
-      : [...roster, ...Array.from({ length: 3 - roster.length }, () => ({ id: newPlayerId(), name: "" }))],
+      : [...roster, ...Array.from({ length: MIN_PLAYERS - roster.length }, () => ({ id: newPlayerId(), name: "" }))],
   );
   const [minorityCount, setMinorityCount] = useState(prefs.minorityCount);
   const [timersOn, setTimersOn] = useState(prefs.timersOn);
@@ -72,12 +72,12 @@ export function SetupForm() {
   }
 
   function addRow() {
-    if (names.length >= 24) return;
+    if (names.length >= MAX_PLAYERS) return;
     setNames((prev) => [...prev, { id: newPlayerId(), name: "" }]);
   }
 
   function removeRow(id: string) {
-    setNames((prev) => (prev.length <= 3 ? prev : prev.filter((n) => n.id !== id)));
+    setNames((prev) => (prev.length <= MIN_PLAYERS ? prev : prev.filter((n) => n.id !== id)));
   }
 
   function toggle<T>(list: T[], value: T): T[] {
@@ -91,8 +91,8 @@ export function SetupForm() {
   function handleStart() {
     const finalRoster = names.filter((n) => n.name.trim() !== "").map((n) => ({ ...n, name: n.name.trim() }));
 
-    if (finalRoster.length < 3 || finalRoster.length > 24) {
-      setFormError("Between Words needs 3 to 24 players.");
+    if (finalRoster.length < MIN_PLAYERS || finalRoster.length > MAX_PLAYERS) {
+      setFormError(`Between Words needs ${MIN_PLAYERS} to ${MAX_PLAYERS} players.`);
       return;
     }
     const normalized = finalRoster.map((r) => normalizeWord(r.name));
@@ -135,7 +135,7 @@ export function SetupForm() {
 
       <Card className="mt-6">
         <h2 className="font-display text-lg font-semibold">Players</h2>
-        <p className="mt-1 text-sm text-muted">3 to 24 players. Blank rows are ignored.</p>
+        <p className="mt-1 text-sm text-muted">{MIN_PLAYERS} to {MAX_PLAYERS} players. Blank rows are ignored.</p>
         <div className="mt-4 grid gap-2">
           {names.map((n, i) => (
             <div key={n.id} className="flex gap-2">
@@ -155,14 +155,14 @@ export function SetupForm() {
                 variant="secondary"
                 aria-label={`Remove player ${i + 1}`}
                 onClick={() => removeRow(n.id)}
-                disabled={names.length <= 3}
+                disabled={names.length <= MIN_PLAYERS}
               >
                 ✕
               </Button>
             </div>
           ))}
         </div>
-        <Button type="button" variant="secondary" className="mt-3" onClick={addRow} disabled={names.length >= 24}>
+      <Button type="button" variant="secondary" className="mt-3" onClick={addRow} disabled={names.length >= MAX_PLAYERS}>
           + Add player
         </Button>
       </Card>

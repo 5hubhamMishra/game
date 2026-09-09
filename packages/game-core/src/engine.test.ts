@@ -126,11 +126,11 @@ describe('setup validation', () => {
   })
 
   it('enforces 1 <= K and 2K < N', () => {
-    expect(() => assertValidSetup(2, 1)).toThrow(EngineError)
+    expect(() => assertValidSetup(3, 1)).toThrow(EngineError)
     expect(() => assertValidSetup(4, 0)).toThrow(EngineError)
     expect(() => assertValidSetup(4, 2)).toThrow(EngineError) // 2K == N
     expect(() => assertValidSetup(5, 2)).not.toThrow()
-    expect(() => assertValidSetup(3, 1)).not.toThrow()
+    expect(() => assertValidSetup(4, 1)).not.toThrow()
   })
 
   it('rejects a roster with duplicate ids', () => {
@@ -142,7 +142,7 @@ describe('setup validation', () => {
 
 describe('assignment', () => {
   it('assigns exactly K minority players and one of two words to everyone', () => {
-    for (const [n, k] of [[3, 1], [5, 2], [7, 3], [16, 3], [24, 3]] as const) {
+    for (const [n, k] of [[4, 1], [5, 2], [7, 3], [10, 3]] as const) {
       const s = started(n, { minorityCount: k })
       expect(s.minorityIds).toHaveLength(k)
       expect(new Set(s.minorityIds).size).toBe(k)
@@ -457,14 +457,14 @@ describe('outcomes', () => {
   })
 
   it('checks elimination before parity when the last minority player goes out', () => {
-    // 3 players, K=1: removing the minority leaves 0 v 2, not parity.
-    let s = started(3, { minorityCount: 1 })
+    // 4 players, K=1: removing the minority leaves 0 v 3, not parity.
+    let s = started(4, { minorityCount: 1 })
     s = eliminate(s, s.minorityIds[0]!)
     expect(s.winner).toBe('majority')
   })
 
-  it('gives a three-player game to the minority when a majority player goes out', () => {
-    let s = started(3, { minorityCount: 1 })
+  it('gives a 5-player, two-minority game to the minority at parity', () => {
+    let s = started(5, { minorityCount: 2 })
     const majority = s.players.filter((id) => !isMinority(s, id))
     s = eliminate(s, majority[0]!)
     expect(s.winner).toBe('minority')
@@ -485,6 +485,20 @@ describe('outcomes', () => {
     expect(s.winner).toBe('minority')
     expect(s.winReason).toBe('MINORITY_SURVIVED_CYCLE_LIMIT')
     expect(advanceFromResolution(s, ctx()).phase).toBe('RESULTS')
+  })
+
+  it('keeps clues and elimination in the same game across multiple cycles', () => {
+    let s = started(4, { maxCycles: 3 })
+    for (const cycle of [1, 2]) {
+      expect(s.cycle).toBe(cycle)
+      s = endDiscussion(throughClues(s), ctx())
+      s = allVote(s, () => null)
+      expect(s.phase).toBe('RESOLUTION')
+      expect(s.clues.filter((clue) => clue.cycle === cycle)).toHaveLength(4)
+      s = advanceFromResolution(s, ctx())
+    }
+    expect(s.cycle).toBe(3)
+    expect(s.phase).toBe('CLUES')
   })
 
   it('awards an eliminated teammate alongside the survivors', () => {

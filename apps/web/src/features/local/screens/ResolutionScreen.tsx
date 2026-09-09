@@ -11,6 +11,9 @@ export function ResolutionScreen() {
   return (
     <div className="mx-auto max-w-md py-8 text-center">
       <Card>
+        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">
+          Cycle {game.cycle} of {game.settings.maxCycles}
+        </p>
         {game.lastEliminated ? (
           <>
             <p className="text-xs font-bold uppercase tracking-wide text-muted">Eliminated</p>

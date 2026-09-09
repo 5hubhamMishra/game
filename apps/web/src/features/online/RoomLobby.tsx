@@ -34,7 +34,7 @@ const ACTION_ERROR_MESSAGES: Record<string, string> = {
   STALE_REVISION: "The room changed — try again.",
   NOT_HOST: "Only the host can do that.",
   ALREADY_STARTED: "The game already started.",
-  NOT_ALL_READY: "Need at least 3 players, with everyone but the host ready.",
+  NOT_ALL_READY: "Need 4 to 10 players, with everyone but the host ready.",
   NO_PAIR_AVAILABLE: "No word pair was available to start with.",
   TOO_LONG: "That clue is too long.",
   TOO_MANY_WORDS: "Clues are one to three words.",
@@ -328,7 +328,7 @@ function LobbyView({
 
       <Card className="mt-6 text-left">
         <p className="text-sm text-muted">{isHost ? "Start when everyone is ready." : "Waiting on the host to start."}</p>
-        {isHost && <Button className="mt-4 w-full" onClick={onStart} disabled={room.players.length < 3 || room.players.some((p) => p.id !== selfId && !p.ready)}>Start game</Button>}
+        {isHost && <Button className="mt-4 w-full" onClick={onStart} disabled={room.players.length < 4 || room.players.length > 10 || room.players.some((p) => p.id !== selfId && !p.ready)}>Start game</Button>}
       </Card>
 
       {actionMessage && <p role="alert" className="mt-4 text-center text-sm text-danger">{actionMessage}</p>}
@@ -377,7 +377,7 @@ function OnlineGame({
   return (
     <div className="mx-auto max-w-lg py-10">
       <p className="sr-only" aria-live="polite">Phase: {room.phase.replaceAll("_", " ")}{connected ? "" : ". Reconnecting."}</p>
-      <p className="text-center text-xs font-bold uppercase tracking-wide text-muted">{room.phase}</p>
+      <p className="text-center text-xs font-bold uppercase tracking-wide text-muted">{room.phase}{room.cycle ? ` · cycle ${room.cycle} of ${room.maxCycles}` : ""}</p>
       <h1 className="mt-2 text-center font-display text-3xl font-bold">Room {room.roomCode}</h1>
       {room.hostId === selfId && !["RESULTS", "ABORTED"].includes(room.phase) && <Button className="mt-4 w-full" variant="secondary" onClick={() => { if (window.confirm("Cancel this game for everyone? No points will be awarded.")) void handle.cancelGame(); }}>Cancel game</Button>}
       {room.phase === "PRIVATE_REVEAL" && (

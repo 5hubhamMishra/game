@@ -25,7 +25,7 @@ export function VotingScreen() {
     <div className="mx-auto max-w-md py-8">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold uppercase tracking-wide text-muted">
-          {game.votingRound === "runoff" ? "Runoff vote" : "Voting"} — {game.ballots.length} of{" "}
+          Cycle {game.cycle} of {game.settings.maxCycles} · {game.votingRound === "runoff" ? "Runoff vote" : "Voting"} — {game.ballots.length} of{" "}
           {active.length} voted
         </p>
         <Countdown deadline={game.deadline} />

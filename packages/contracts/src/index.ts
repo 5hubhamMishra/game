@@ -32,6 +32,8 @@ export const publicRoomViewSchema = z.object({
   roomCode: z.string().length(6),
   hostId: z.string().min(1),
   phase: phaseSchema,
+  cycle: z.number().int().positive().nullable().default(null),
+  maxCycles: z.number().int().positive().default(5),
   revision: z.number().int().nonnegative(),
   settings: z.object({ minorityCount: z.number().int().min(1).max(3) }).default({ minorityCount: 1 }),
   players: z.array(publicPlayerSchema),
