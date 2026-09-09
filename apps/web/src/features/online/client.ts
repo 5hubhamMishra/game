@@ -51,9 +51,12 @@ function eventId(): string {
 
 type Ack = { ok: boolean; code?: string; room?: unknown; self?: unknown; results?: unknown };
 
+// Resolves with { ok: false, code: "TIMEOUT" } rather than rejecting, so every
+// caller's existing `if (!result.ok) ...` handling covers a timeout too — no
+// call site needs its own try/catch to avoid an unhandled rejection.
 function emitWithAck(socket: Socket, event: string, payload: unknown, timeoutMs = 8000): Promise<Ack> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("TIMEOUT")), timeoutMs);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve({ ok: false, code: "TIMEOUT" }), timeoutMs);
     socket.emit(event, payload, (result: Ack) => {
       clearTimeout(timer);
       resolve(result);
@@ -125,18 +128,20 @@ export function connectToRoom(
   }
 
   socket.on("connect", async () => {
-    try {
-      const result = await emitWithAck(socket, "joinRoom", { eventId: eventId(), roomCode: code });
-      if (!result.ok || !result.room) return handlers.onError(result.code ?? "JOIN_FAILED");
-      joinedOnce = true;
-      accept(result.room);
-      if (result.self) acceptSelf(result.self);
-      if (result.results) acceptResults(result.results);
-      void emitWithAck(socket, "getResults", { eventId: eventId() }).then((latest) => { if (latest.results) acceptResults(latest.results); });
-      handlers.onConnectionChange?.(true);
-    } catch {
-      handlers.onError("JOIN_FAILED");
+    const result = await emitWithAck(socket, "joinRoom", { eventId: eventId(), roomCode: code });
+    if (!result.ok || !result.room) {
+      // A rejoin after a reconnect (socket.io retries "connect" on its own)
+      // failing transiently is not the same as the initial join never
+      // succeeding — only the latter is fatal, per this function's contract.
+      if (!joinedOnce) return handlers.onError(result.code ?? "JOIN_FAILED");
+      return handlers.onConnectionChange?.(false);
     }
+    joinedOnce = true;
+    accept(result.room);
+    if (result.self) acceptSelf(result.self);
+    if (result.results) acceptResults(result.results);
+    void emitWithAck(socket, "getResults", { eventId: eventId() }).then((latest) => { if (latest.results) acceptResults(latest.results); });
+    handlers.onConnectionChange?.(true);
   });
 
   socket.on("roomSnapshot", accept);

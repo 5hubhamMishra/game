@@ -15,7 +15,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   NAME_TAKEN: "Someone in this room already has that name.",
   ROOM_FULL: "That room is full.",
   SESSION_REQUIRED: "Could not start a guest session.",
-  NOT_A_MEMBER: "Join this room first before connecting.",
+  MEMBERSHIP_REQUIRED: "Join this room first before connecting.",
   CONNECTION_FAILED: "Could not reach the game server.",
   JOIN_FAILED: "Could not join this room.",
 };
@@ -49,6 +49,7 @@ const ACTION_ERROR_MESSAGES: Record<string, string> = {
   INVALID_MEMBER: "That player could not be removed.",
   REMOVE_FAILED: "Could not remove that player.",
   ORIGIN_NOT_ALLOWED: "This site is not allowed to use the game server.",
+  TIMEOUT: "That took too long — try again.",
 };
 
 export function RoomLobby({ code }: { code: string }) {
@@ -64,10 +65,21 @@ export function RoomLobby({ code }: { code: string }) {
   const [connected, setConnected] = useState(true);
   const [handle, setHandle] = useState<RoomHandle | null>(null);
   const socketRef = useRef<RoomHandle | null>(null);
+  // Bumped only on a real (re)join attempt (mount-with-saved-name, name
+  // submit, retry) — the effect below also flips `status` internally as it
+  // progresses, and `status` must not be a dependency or that self-write
+  // would rerun the effect and tear down the socket the instant the first
+  // snapshot arrives.
+  const [joinAttempt, setJoinAttempt] = useState(0);
   // Tracks eliminated-player ids across snapshots so RESOLUTION can name who
   // was *just* eliminated — the public view only ever exposes the cumulative
   // eliminated set, not a per-cycle delta.
   const eliminatedRef = useRef<Set<string>>(new Set());
+  // The server rebroadcasts roomSnapshot to the whole room on any member's
+  // (re)connect, regardless of phase — so a second snapshot can land while
+  // still in RESOLUTION. Only recompute "who was just eliminated" on the
+  // actual transition into RESOLUTION, not on every snapshot received there.
+  const previousPhaseRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (status !== "joining") return;
@@ -93,12 +105,14 @@ export function RoomLobby({ code }: { code: string }) {
               eliminatedRef.current = new Set();
             } else {
               const nowEliminated = new Set(view.players.filter((p) => p.eliminated).map((p) => p.id));
-              if (view.phase === "RESOLUTION") {
+              const enteringResolution = view.phase === "RESOLUTION" && previousPhaseRef.current !== "RESOLUTION";
+              if (enteringResolution) {
                 const newlyEliminated = [...nowEliminated].find((id) => !eliminatedRef.current.has(id));
                 setJustEliminated(newlyEliminated ?? null);
               }
               eliminatedRef.current = nowEliminated;
             }
+            previousPhaseRef.current = view.phase;
             setRoom(view);
             setStatus("in-lobby");
           },
@@ -140,7 +154,7 @@ export function RoomLobby({ code }: { code: string }) {
       socketRef.current = null;
       setHandle(null);
     };
-  }, [status, code, name]);
+  }, [joinAttempt, code, name]);
 
   function submitName(value: string) {
     const trimmed = value.trim();
@@ -148,11 +162,20 @@ export function RoomLobby({ code }: { code: string }) {
     saveDisplayName(trimmed);
     setName(trimmed);
     setStatus("joining");
+    setJoinAttempt((attempt) => attempt + 1);
   }
 
   if (status === "checking-name") return <NamePrompt code={code} onSubmit={submitName} />;
   if (status === "error") {
-    return <ErrorView message={ERROR_MESSAGES[error ?? ""] ?? "Something went wrong."} onRetry={() => setStatus("joining")} />;
+    return (
+      <ErrorView
+        message={ERROR_MESSAGES[error ?? ""] ?? "Something went wrong."}
+        onRetry={() => {
+          setStatus("joining");
+          setJoinAttempt((attempt) => attempt + 1);
+        }}
+      />
+    );
   }
   if (status === "joining" || !room || !playerId) {
     return (

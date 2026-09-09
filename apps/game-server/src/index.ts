@@ -150,22 +150,22 @@ function applyGameAction(roomCode: string, action: string, playerId: string, pay
     const pair = pickPair(ctx.rng, { difficulties: settings.difficulties, excludeIds: recentPairIds })
       ?? pickPair(ctx.rng, { difficulties: settings.difficulties })
     if (!pair) throw new Error('NO_PAIR_AVAILABLE')
-    return { game: startGame(room.members.map((member) => member.id), settings, pair, ctx), discussion: [], recentPairIds: [...recentPairIds, pair.id].slice(-20) }
+    return { game: startGame(room.members.map((member) => member.id), settings, pair, ctx), discussion: [], recentPairIds: [...recentPairIds, pair.id].slice(-20), scores: room.secret.scores ?? {} }
   }
   if (action === 'cancelGame') {
     if (playerId !== room.hostId || !game) throw new Error('NOT_HOST')
     return { ...room.secret, game: abortGame(game) }
   }
   if (action === 'setSettings') {
-    if (playerId !== room.hostId || game) throw new Error('NOT_HOST')
+    if (playerId !== room.hostId) throw new Error('NOT_HOST')
+    if (game) throw new Error('ALREADY_STARTED')
     const minorityCount = Number(payload.minorityCount)
     if (!Number.isInteger(minorityCount) || minorityCount < 1 || minorityCount > Math.min(3, Math.floor((room.members.length - 1) / 2))) throw new Error('INVALID_MINORITY_COUNT')
     return { ...room.secret, minorityCount }
   }
-  if (action === 'requestRematch') {
-    if (!game || !['RESULTS', 'ABORTED'].includes(game.phase)) throw new Error('WRONG_PHASE')
-    return emptySecret
-  }
+  // requestRematch is handled by the caller before reaching this function
+  // (it needs to gate on all members' ready flags, not just phase) — no
+  // branch for it here.
   if (!game) throw new Error('WRONG_PHASE')
   switch (action) {
     case 'acknowledgeWord': return { ...room.secret, game: acknowledgeWord(game, playerId, ctx) }
@@ -440,6 +440,9 @@ io.on('connection', (socket) => {
         if (room.secret.game) room.secret = { ...room.secret, game: settleOverdue(room.secret.game, ctx) }
         let next: SecretState
         if (action === 'requestRematch') {
+          if (!room.secret.game || !['RESULTS', 'ABORTED'].includes(room.secret.game.phase)) {
+            await client.query('rollback'); return acknowledge({ ok: false, code: 'WRONG_PHASE' })
+          }
           room.members = room.members.map((member) => member.id === playerId ? { ...member, ready: true } : member)
           await client.query('update memberships set ready=true, last_seen_at=now() where room_code=$1 and player_id=$2', [roomCode, playerId])
           next = room.members.every((member) => member.ready)

@@ -463,10 +463,14 @@ describe('outcomes', () => {
     expect(s.winner).toBe('majority')
   })
 
-  it('gives a 5-player, two-minority game to the minority at parity', () => {
-    let s = started(5, { minorityCount: 2 })
+  it('gives a 4-player, single-minority game to the minority at parity', () => {
+    // 4 players, K=1: two majority eliminations in turn leave 1 v 1.
+    let s = started(4, { minorityCount: 1 })
     const majority = s.players.filter((id) => !isMinority(s, id))
     s = eliminate(s, majority[0]!)
+    expect(s.winner).toBeNull()
+    s = advanceFromResolution(s, ctx())
+    s = eliminate(s, majority[1]!)
     expect(s.winner).toBe('minority')
     expect(s.winReason).toBe('MINORITY_REACHED_PARITY')
   })
