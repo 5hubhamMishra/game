@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomInt } from 'node:crypto'
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import { createServer } from 'node:http'
 import { Pool } from 'pg'
 import { Server } from 'socket.io'
@@ -12,12 +12,29 @@ import { discussionMessageSchema, publicRoomViewSchema, resultsViewSchema, selfV
 
 const port = Number(process.env.PORT ?? 8787)
 const origin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000'
-const secureCookies = process.env.NODE_ENV === 'production' ? '; Secure' : ''
+// Only the Vercel backend-for-frontend holds this — never the browser. It
+// gates every guest-session/room HTTP mutation so the browser can no longer
+// reach this service directly, only through the same-origin Vercel facade.
+const serviceToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'dev-service-token'
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const MAX_ONLINE_PLAYERS = MAX_PLAYERS
 const discussionPosts = new Map<string, number[]>()
 const httpRequests = new Map<string, number[]>()
+// Single-use socket-auth tickets, ~60s TTL. In-memory and process-local —
+// same ceiling as the rate-limit maps above: fine for one authoritative
+// instance, would need a shared store (e.g. Redis) to scale horizontally.
+const tickets = new Map<string, { playerId: string; roomCode: string; expiresAt: number }>()
+function requireServiceToken(request: import('node:http').IncomingMessage): boolean {
+  const provided = Buffer.from(String(request.headers['x-service-token'] ?? ''))
+  const expected = Buffer.from(serviceToken)
+  return provided.length === expected.length && timingSafeEqual(provided, expected)
+}
+function clientIp(request: import('node:http').IncomingMessage): string {
+  const forwarded = request.headers['x-forwarded-for']
+  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim()
+  return first || request.socket.remoteAddress || 'unknown'
+}
 
 function token() { return randomBytes(32).toString('base64url') }
 function hash(value: string) { return createHash('sha256').update(value).digest('hex') }
@@ -58,16 +75,6 @@ async function body(request: import('node:http').IncomingMessage) {
   for await (const chunk of request) chunks.push(Buffer.from(chunk))
   if (Buffer.concat(chunks).length > 100_000) throw new Error('PAYLOAD_TOO_LARGE')
   return JSON.parse(Buffer.concat(chunks).toString() || '{}') as Record<string, unknown>
-}
-function cookies(request: import('node:http').IncomingMessage) {
-  return Object.fromEntries((request.headers.cookie ?? '').split(';').filter(Boolean).map((part) => {
-    const [key, ...value] = part.trim().split('='); return [key, value.join('=')]
-  }))
-}
-function sessionFromHeaders(headers: import('node:http').IncomingHttpHeaders) {
-  const raw = headers.cookie ?? ''
-  const value = raw.split(';').map((part) => part.trim()).find((part) => part.startsWith('bw_session='))
-  return value?.slice('bw_session='.length) || null
 }
 async function playerForSession(session: string | null) {
   if (!session) return null
@@ -250,8 +257,11 @@ const http = createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`)
     if (request.headers.origin && request.headers.origin !== origin) return json(response, 403, { code: 'ORIGIN_NOT_ALLOWED' })
     if (request.method === 'OPTIONS') return json(response, 204, null)
-    const ip = request.socket.remoteAddress ?? 'unknown'
-    if (request.method === 'POST' && (url.pathname === '/sessions' || url.pathname === '/rooms') && !allowHttpRequest(ip, Date.now(), 20)) {
+    const internalPaths = new Set(['/sessions', '/rooms', '/internal/tickets'])
+    const isInternalRoute = internalPaths.has(url.pathname) || /^\/rooms\/[A-Z2-9]{6}\/members$/.test(url.pathname)
+    if (isInternalRoute && !requireServiceToken(request)) return json(response, 403, { code: 'SERVICE_TOKEN_REQUIRED' })
+    const ip = clientIp(request)
+    if (request.method === 'POST' && (url.pathname === '/sessions' || url.pathname === '/rooms' || url.pathname === '/internal/tickets') && !allowHttpRequest(ip, Date.now(), 20)) {
       return json(response, 429, { code: 'RATE_LIMITED' })
     }
     if (request.method === 'GET' && url.pathname === '/health') {
@@ -259,16 +269,31 @@ const http = createServer(async (request, response) => {
       return json(response, 200, { ok: true })
     }
     if (request.method === 'POST' && url.pathname === '/sessions') {
+      // No Set-Cookie here: this is a server-to-server call from the Vercel
+      // backend-for-frontend, which owns the actual browser-facing cookie on
+      // its own (Vercel) origin. The raw token only ever crosses this one
+      // internal hop, authenticated by the service token above.
       const session = token(); const playerId = randomBytes(16).toString('hex')
       await pool.query('insert into guest_sessions (token_hash, player_id, expires_at) values ($1,$2,now()+interval \'30 days\')', [hash(session), playerId])
-      response.setHeader('set-cookie', `bw_session=${session}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${secureCookies}`)
-      return json(response, 201, { playerId })
+      return json(response, 201, { playerId, session })
+    }
+    if (request.method === 'POST' && url.pathname === '/internal/tickets') {
+      const data = await body(request)
+      const session = typeof data.session === 'string' ? data.session : null
+      const roomCode = typeof data.roomCode === 'string' ? data.roomCode : null
+      const playerId = await playerForSession(session)
+      if (!playerId) return json(response, 401, { code: 'SESSION_REQUIRED' })
+      if (!roomCode || !/^[A-Z2-9]{6}$/.test(roomCode)) return json(response, 400, { code: 'INVALID_ROOM_CODE' })
+      for (const [id, entry] of tickets) if (entry.expiresAt <= Date.now()) tickets.delete(id)
+      const ticket = randomBytes(24).toString('base64url')
+      tickets.set(ticket, { playerId, roomCode, expiresAt: Date.now() + 60_000 })
+      return json(response, 201, { ticket, expiresIn: 60 })
     }
     const match = url.pathname.match(/^\/rooms\/([A-Z2-9]{6})$/)
     if (request.method === 'POST' && url.pathname === '/rooms') {
       const data = await body(request); const name = typeof data.name === 'string' ? data.name.trim() : ''
       if (!name || name.length > 40) return json(response, 400, { code: 'INVALID_NAME' })
-      const session = cookies(request).bw_session
+      const session = typeof request.headers['x-guest-session'] === 'string' ? request.headers['x-guest-session'] : null
       if (!session) return json(response, 401, { code: 'SESSION_REQUIRED' })
       const client = await pool.connect()
       try {
@@ -293,7 +318,7 @@ const http = createServer(async (request, response) => {
     }
     const joinMatch = url.pathname.match(/^\/rooms\/([A-Z2-9]{6})\/members$/)
     if (request.method === 'POST' && joinMatch) {
-      const session = cookies(request).bw_session
+      const session = typeof request.headers['x-guest-session'] === 'string' ? request.headers['x-guest-session'] : null
       const playerId = await playerForSession(session)
       if (!playerId) return json(response, 401, { code: 'SESSION_REQUIRED' })
       const data = await body(request); const name = typeof data.name === 'string' ? data.name.trim() : ''
@@ -331,22 +356,29 @@ const http = createServer(async (request, response) => {
   }
 })
 
-const io = new Server(http, { cors: { origin, credentials: true }, transports: ['websocket', 'polling'] })
-io.use(async (socket, next) => {
-  try {
-    const playerId = await playerForSession(sessionFromHeaders(socket.handshake.headers))
-    if (!playerId) return next(new Error('SESSION_REQUIRED'))
-    socket.data.playerId = playerId
-    next()
-  } catch { next(new Error('SESSION_UNAVAILABLE')) }
+// No `credentials: true` — the socket no longer carries the guest-session
+// cookie at all; the handshake authenticates with the single-use ticket
+// below instead, so there is nothing cross-origin-cookie-dependent left here.
+const io = new Server(http, { cors: { origin }, transports: ['websocket', 'polling'] })
+io.use((socket, next) => {
+  const raw = socket.handshake.auth?.ticket
+  const provided = typeof raw === 'string' ? raw : null
+  const entry = provided ? tickets.get(provided) : undefined
+  if (!entry || entry.expiresAt <= Date.now()) return next(new Error('TICKET_REQUIRED'))
+  tickets.delete(provided!) // single-use: consumed on the handshake that spends it
+  socket.data.playerId = entry.playerId
+  socket.data.roomCode = entry.roomCode
+  next()
 })
 io.on('connection', (socket) => {
   const playerId = socket.data.playerId as string
   socket.on('joinRoom', async (payload: unknown, acknowledge: (result: unknown) => void) => {
     const parsed = socketActions.joinRoom.safeParse(payload)
     if (!parsed.success) return acknowledge({ ok: false, code: 'INVALID_PAYLOAD' })
-    const roomCode = parsed.data.roomCode
-    socket.data.roomCode = roomCode
+    const roomCode = socket.data.roomCode as string
+    // The room the client is asking to join must be the one its ticket was
+    // minted for -- the ticket is the actual authorization, not this field.
+    if (parsed.data.roomCode !== roomCode) return acknowledge({ ok: false, code: 'ROOM_MISMATCH' })
     const member = await pool.query(
       'select display_name from memberships where room_code=$1 and player_id=$2',
       [roomCode, playerId],

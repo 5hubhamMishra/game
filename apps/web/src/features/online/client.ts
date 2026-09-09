@@ -2,6 +2,10 @@ import { io, type Socket } from "socket.io-client";
 import { publicRoomViewSchema, resultsViewSchema, selfViewSchema, type PublicRoomView, type ResultsView, type SelfView } from "@bw/contracts";
 import { loadPlayerId, savePlayerId } from "./storage";
 
+// The browser's socket connects here directly (see connectToRoom) -- but
+// every HTTP call below goes through this app's own same-origin /api routes
+// instead, which hold the guest-session cookie and forward server-to-server.
+// See docs/SECURITY.md.
 export const SERVER_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL ?? "http://localhost:8787";
 
 export class ApiError extends Error {
@@ -15,9 +19,9 @@ export class ApiError extends Error {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${SERVER_URL}${path}`, {
+  const response = await fetch(`/api${path}`, {
     ...init,
-    credentials: "include",
+    credentials: "same-origin",
     headers: { "content-type": "application/json", ...init?.headers },
   });
   const data = (await response.json().catch(() => ({}))) as Partial<T> & { code?: string };
@@ -41,6 +45,12 @@ export async function createRoom(name: string): Promise<string> {
 
 export async function joinRoomHttp(code: string, name: string): Promise<void> {
   await api<{ code: string }>(`/rooms/${code}/members`, { method: "POST", body: JSON.stringify({ name }) });
+}
+
+/** Fetches a fresh single-use socket-auth ticket -- never cached, never stored. */
+async function fetchTicket(code: string): Promise<string> {
+  const { ticket } = await api<{ ticket: string }>(`/rooms/${code}/ticket`, { method: "POST" });
+  return ticket;
 }
 
 function eventId(): string {
@@ -108,7 +118,17 @@ export function connectToRoom(
     onRemoved?: () => void;
   },
 ): RoomHandle {
-  const socket = io(SERVER_URL, { withCredentials: true, transports: ["websocket", "polling"] });
+  const socket = io(SERVER_URL, {
+    transports: ["websocket", "polling"],
+    // A function (not a plain object) so socket.io-client calls it fresh on
+    // every connection attempt, including automatic reconnects -- each
+    // ticket is single-use and consumed the moment a handshake spends it.
+    auth: (callback) => {
+      fetchTicket(code)
+        .then((ticket) => callback({ ticket }))
+        .catch(() => callback({}));
+    },
+  });
   let joinedOnce = false;
   const reportActionError = (code: string) => (handlers.onActionError ?? handlers.onError)(code);
 
