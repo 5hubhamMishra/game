@@ -18,5 +18,8 @@ npm run -w apps/web typecheck
 ## Status
 
 Pass & Play (`/local`, `/local/play`) is fully implemented against the pure
-engine. Online rooms (`/online`) need the Phase 3 backend and are an honest
-placeholder until then — see `docs/progress.md` at the repository root.
+engine. Online rooms (`/online`, `/room/[code]`) use the Phase 3 HTTP and
+Socket.IO backend; local PostgreSQL is still required for a live room.
+Session/room HTTP calls go through this app's own same-origin `src/app/api/*`
+routes (a backend-for-frontend), not directly to `apps/game-server` — see
+`docs/decisions.md` and `docs/SECURITY.md`.

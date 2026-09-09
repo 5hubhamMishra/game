@@ -2,19 +2,44 @@
 
 Meaningful deviations and choices, with the reason. Newest first.
 
-## `apps/web`'s online lobby stops at the lobby, on purpose
+## Same-origin session boundary + single-use socket tickets
 
-`/online` and `/room/[code]` do a real round trip against `apps/game-server`
-(guest session, create/join a room, live roster, ready toggle over the
-socket) — no client-only fake room, per §4/§10's standing rule against faking
-capability the backend doesn't have. It deliberately goes no further: once
-`startGame`/durable transitions and a private self (word) projection exist
-server-side, both host and guest currently see an explicit "starting the game
-isn't wired up yet" note instead of a game screen that would have nothing
-real to show. Building clue/discussion/voting screens ahead of that server
-work would mean coding against a contract still being written concurrently by
-another tool in this same tree — likely to need rework, and indistinguishable
-from the fake-room shortcut this project explicitly rejects.
+`docs/SECURITY.md` flagged this as still needed, and the master prompt (line
+135) specifies it directly: browser HTTP session/room calls go same-origin
+through `apps/web`'s own `src/app/api/*` routes now, not directly to
+`apps/game-server`. Those routes hold the guest session as a host-only
+`HttpOnly`/`Secure`/`SameSite=Lax` cookie on the Vercel origin and forward it
+to the backend over an internal HTTP hop authenticated by a shared
+`INTERNAL_SERVICE_TOKEN` the browser never receives — closing the
+cross-origin third-party-cookie dependency the spec explicitly warns against
+between `vercel.app` and `onrender.com`.
+
+The Socket.IO connection still goes browser-to-backend directly (sockets
+need a persistent connection a serverless BFF can't hold open), but now
+authenticates with a single-use ticket instead of a cookie: a same-origin
+route mints one (bound to player + room, ~60s TTL, an in-memory `Map` on the
+backend — fine for the single authoritative instance this app already runs
+as, would need a shared store to scale horizontally), the client holds it
+only in memory and sends it in the socket handshake's `auth` payload, and
+the server deletes it the instant a handshake spends it. socket.io-client's
+`auth` option accepts a function that it calls fresh on every connection
+attempt including automatic reconnects, so "issue a fresh one for
+reconnect" falls out of the existing reconnect machinery for free — no
+custom retry/refresh logic needed.
+
+The ticket does not additionally store the frontend origin: this app has
+exactly one configured `FRONTEND_ORIGIN`, and Socket.IO's own `cors: {
+origin }` config already refuses the handshake before it reaches ticket
+verification if the `Origin` header doesn't match — storing origin again on
+the ticket would just duplicate a check the transport layer already makes
+structurally impossible to bypass.
+
+## `apps/web`'s online game uses the authoritative backend
+
+`/online` and `/room/[code]` do real guest-session, room, roster, ready,
+gameplay, private-word, results, and rematch round trips against
+`apps/game-server`. The client does not maintain a fake multiplayer state;
+PostgreSQL remains the source of truth for online play.
 
 ## Guest identity is cached client-side, not re-derived from the cookie
 

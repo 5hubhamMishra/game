@@ -11,9 +11,9 @@ before editing anything you do not own.
 | 0 — inspect environment, resolve repo | Done |
 | 1 — pure engine, content, validators, rule tests | Done |
 | 2 — design system, public pages, full local game | Done |
-| 3 — Postgres, sessions, rooms, realtime | In progress |
-| 4 — QA, security, performance, packaging | In progress |
-| 5 — publish and production smoke test | Not started |
+| 3 — Postgres, sessions, rooms, realtime | Done |
+| 4 — QA, security, performance, packaging | Done |
+| 5 — publish and production smoke test | In progress |
 
 ## Completed
 
@@ -95,9 +95,9 @@ source, no build step) and `agentRules: false` — Next 16 auto-generates
 confirmed absent after both a dev run and a production build with the flag
 set.
 
-Routes: `/`, `/local` (setup), `/local/play` (game), `/online` (honest
-"not available in this build" notice — Phase 3 needs a real backend, not a
-client-only fake room), `/how-to-play`, `/privacy`, and the default 404.
+Routes: `/`, `/local` (setup), `/local/play` (game), `/online` (room entry),
+`/room/[code]` (online lobby and game), `/how-to-play`, `/privacy`, and the
+default 404.
 
 The complete local Pass & Play game is wired to `@bw/game-core` directly —
 no server, so this is the "best-effort local secrecy" the spec describes, not
@@ -151,57 +151,68 @@ Next's production build into a mixed dev/prod React runtime. `verify` now
 assumes dependencies are already installed and runs with an unmodified
 `NODE_ENV`.
 
-## Ownership right now
+### Phase 5 — production readiness (in progress)
 
-Phase 4 packaging is now present: `START_HERE.md`, `.env.example`,
-`docs/OPERATIONS.md`, `scripts/setup.mjs`, `scripts/doctor.mjs`, and the
-least-privilege `.github/workflows/ci.yml` workflow. `npm run doctor` and
-`npm run verify` pass locally; Docker remains unavailable for the database
-smoke path.
+Docker is now installed and working on this machine (`docker compose up -d
+postgres` works; port 5432 can collide with an unrelated project's own
+Postgres container — run this project's on a different host port if so,
+never touch a container you don't recognize).
 
-Two tools, same shared working tree, no branch/worktree isolation between
-them (per the multi-tool-concurrency section of the spec): Codex owns
-`apps/game-server`, `db/migrations`, and `packages/contracts`; Claude Code
-built the `apps/web` online lobby UI (`/online`, `/room/[code]`) against the
-HTTP/socket surface Codex has already shipped, touching only
-`apps/web/**` plus additive-only edits to `apps/web/next.config.ts` and
-`apps/web/package.json` (new `@bw/contracts` and `socket.io-client`
-dependencies). Neither tool has committed yet — check `git status`/`git diff`
-before editing either side's files.
+A full code review of the Phase 3/4 online backend (commits `43e839e..a6c8595`,
+everything since Phase 3 started) found and fixed 9 real bugs, committed
+`4bdc1f2`. The most severe: `apps/web/src/features/online/RoomLobby.tsx`'s
+join `useEffect` had `status` in its own dependency array while also setting
+`status` inside itself — the first snapshot flipped status to `"in-lobby"`,
+which reran the effect, whose cleanup disconnected the socket with no
+reconnect path back. **Online multiplayer never worked past the initial
+lobby screen, in any deployment, the whole time it existed** — invisible to
+typecheck/lint/unit tests, only caught by review + a live protocol trace.
+Also fixed: a score-wipe on every new game, a `requestRematch` phase-bypass
+that could reset a live game, a reconnect-vs-fatal-error mixup, ack-timeout
+unhandled rejections, a stale elimination-banner ref, a client/server
+error-code mismatch, a misleading host-error message, and a duplicated
+engine test that had silently dropped coverage for the default (K=1)
+minority-parity-win path.
 
-The root prototype (`index.html`, `app.js`, `styles.css`) was in fact already
-committed (`977a91b`), not "uncommitted and untouched" as this file previously
-claimed — see `docs/decisions.md`. It has been removed now that Phase 2
-supersedes it with real, wired-up markup.
+Built the same-origin session boundary and single-use socket tickets
+`docs/SECURITY.md` (below) called out as still needed — see
+`docs/decisions.md` for the design. Commit `cd60638`.
+
+Both of the above were verified against a real local stack, not just
+typechecked: a temporary Postgres container (`docker run ... -p 5433:5432`,
+never the shared `docker-compose.yml`, to avoid the port-5432 collision) plus
+`apps/game-server` pointed at it. Confirmed over curl and a throwaway
+`socket.io-client` script: the service-token gate 403s unauthenticated
+direct access to the backend; the full BFF cookie/session/room-creation flow
+works; a minted ticket joins its room exactly once (reuse, forgery, and a
+room-code mismatch are all rejected); a seeded nonzero score survives a real
+`startGame` call; a mid-game `requestRematch` is rejected with `WRONG_PHASE`
+and the live game is left running.
+
+**Not yet done:**
+- **Deploy is broken in production right now regardless of the above** —
+  `vercel env ls production` returns zero env vars; the deployed client
+  bundle has `localhost:8787` baked into it (confirmed by downloading and
+  grepping the production JS). The real Render URL for `apps/game-server`
+  is still unknown — `render.yaml` names the service
+  `between-words-game-server` but that hostname isn't live on Render
+  (`x-render-routing: no-server`). Once the real URL is known: set
+  `GAME_SERVER_URL`, `GAME_SERVER_SERVICE_TOKEN`, and
+  `NEXT_PUBLIC_GAME_SERVER_URL` on Vercel (production), and
+  `INTERNAL_SERVICE_TOKEN` + `FRONTEND_ORIGIN` on Render, with matching
+  token values on both sides.
+- No real-browser click-through this session either — the Claude-in-Chrome
+  extension was not connected. Everything above was verified over
+  curl/socket.io-client/vitest, not an actual browser session. Worth doing
+  once the extension is available, or once staging is reachable to a human.
+- Local Pass & Play's player cap was tightened from ~3–24 to 4–10 in
+  `a6c8595` ("Support bounded multi-cycle games"), deliberately on both the
+  engine and the local setup UI — flag to the user if a large local group
+  ever comes up; not reverted since it reads as an intentional decision.
 
 ## Next bounded task
 
-Phase 3: Postgres schema and migrations, guest sessions, `apps/game-server`
-(Socket.IO + HTTP), room lifecycle, and reconnect/deadline recovery — then wire
-`/online` and `/room/[code]` to it. Contracts are now defined in
-`packages/contracts`. The current bounded implementation adds the contracts,
-initial PostgreSQL schema, guest-session/room HTTP endpoints, authenticated
-Socket.IO room join and ready actions, locked/idempotent gameplay actions
-persisted through the deterministic engine, explicit private word reveal
-  snapshots, deadline recovery, terminal results, and rematch handling. Full
-  end-to-end verification remains open.
-
-## Blockers
-
-- `apps/web`'s `/online` and `/room/[code]` now do the real room round trip
-  (create/join a room, guest session, roster, ready toggle) against
-  `apps/game-server`'s HTTP + socket surface — no more client-only fake room.
-  The room page now wires the core reveal, clue, discussion, voting, and
-  resolution actions. Client code:
-  `apps/web/src/features/online/{client,storage}.ts`,
-  `{JoinForm,RoomLobby}.tsx`. Verified: `npm run typecheck`/`lint`/`test`/
-  `build` all pass with the new `@bw/contracts` + `socket.io-client`
-  dependencies; SSR of both routes checked with `curl` against `next dev`
-  (200s, no console errors). **Not verified**: an actual join/ready round trip
-  against a running `apps/game-server` — Docker is still not installed on this
-  machine, so there is no live server to point it at locally.
-- Docker is not installed on this machine, so PostgreSQL-backed `/health` and
-  room creation could not be smoke-tested locally. The server typecheck and
-  service test pass; `/health` returns 500 when `DATABASE_URL` is unavailable.
-- No real-browser verification this session (see Phase 2 note above). Worth
-  doing before Phase 2 is called visually complete.
+Get the real Render URL for `apps/game-server`, wire the Vercel/Render env
+vars listed above, and run one real multi-browser (or at least
+multi-device) online smoke test against the live production stack. Only
+after that should Phase 5 be called complete.
