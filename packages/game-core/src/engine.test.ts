@@ -126,11 +126,18 @@ describe('setup validation', () => {
   })
 
   it('enforces 1 <= K and 2K < N', () => {
-    expect(() => assertValidSetup(3, 1)).toThrow(EngineError)
+    expect(() => assertValidSetup(3, 2)).toThrow(EngineError) // 2K > N
     expect(() => assertValidSetup(4, 0)).toThrow(EngineError)
     expect(() => assertValidSetup(4, 2)).toThrow(EngineError) // 2K == N
     expect(() => assertValidSetup(5, 2)).not.toThrow()
-    expect(() => assertValidSetup(4, 1)).not.toThrow()
+    expect(() => assertValidSetup(3, 1)).not.toThrow()
+  })
+
+  it('enforces the 3-to-15 player range', () => {
+    expect(() => assertValidSetup(2, 1)).toThrow(EngineError)
+    expect(() => assertValidSetup(16, 1)).toThrow(EngineError)
+    expect(() => assertValidSetup(3, 1)).not.toThrow()
+    expect(() => assertValidSetup(15, 3)).not.toThrow()
   })
 
   it('rejects a roster with duplicate ids', () => {

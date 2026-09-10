@@ -12,8 +12,8 @@ import {
 
 // ---------------------------------------------------------------- setup rules
 
-export const MIN_PLAYERS = 4
-export const MAX_PLAYERS = 10
+export const MIN_PLAYERS = 3
+export const MAX_PLAYERS = 15
 
 /** Largest K satisfying the 2K < N rule, capped at three minority players. */
 export function maxMinorityCount(playerCount: number): number {

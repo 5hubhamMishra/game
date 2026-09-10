@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { PublicRoomView, ResultsView, SelfView } from "@bw/contracts";
+import { MAX_PLAYERS, MIN_PLAYERS } from "@bw/game-core";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { ApiError, connectToRoom, ensureSession, joinRoomHttp, type RoomHandle } from "./client";
@@ -34,7 +35,7 @@ const ACTION_ERROR_MESSAGES: Record<string, string> = {
   STALE_REVISION: "The room changed — try again.",
   NOT_HOST: "Only the host can do that.",
   ALREADY_STARTED: "The game already started.",
-  NOT_ALL_READY: "Need 4 to 10 players, with everyone but the host ready.",
+  NOT_ALL_READY: `Need ${MIN_PLAYERS} to ${MAX_PLAYERS} players, with everyone but the host ready.`,
   NO_PAIR_AVAILABLE: "No word pair was available to start with.",
   TOO_LONG: "That clue is too long.",
   TOO_MANY_WORDS: "Clues are one to three words.",
@@ -351,7 +352,7 @@ function LobbyView({
 
       <Card className="mt-6 text-left">
         <p className="text-sm text-muted">{isHost ? "Start when everyone is ready." : "Waiting on the host to start."}</p>
-        {isHost && <Button className="mt-4 w-full" onClick={onStart} disabled={room.players.length < 4 || room.players.length > 10 || room.players.some((p) => p.id !== selfId && !p.ready)}>Start game</Button>}
+        {isHost && <Button className="mt-4 w-full" onClick={onStart} disabled={room.players.length < MIN_PLAYERS || room.players.length > MAX_PLAYERS || room.players.some((p) => p.id !== selfId && !p.ready)}>Start game</Button>}
       </Card>
 
       {actionMessage && <p role="alert" className="mt-4 text-center text-sm text-danger">{actionMessage}</p>}
