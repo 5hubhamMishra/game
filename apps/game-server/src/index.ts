@@ -15,17 +15,23 @@ const origin = process.env.FRONTEND_ORIGIN ?? 'http://localhost:3000'
 // Only the Vercel backend-for-frontend holds this — never the browser. It
 // gates every guest-session/room HTTP mutation so the browser can no longer
 // reach this service directly, only through the same-origin Vercel facade.
-const serviceToken = process.env.INTERNAL_SERVICE_TOKEN ?? 'dev-service-token'
+export function serviceTokenFor(environment: string | undefined, configured: string | undefined) {
+  return configured?.trim() || (environment === 'production' ? null : 'dev-service-token')
+}
+const serviceToken = serviceTokenFor(process.env.NODE_ENV, process.env.INTERNAL_SERVICE_TOKEN)
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const MAX_ONLINE_PLAYERS = MAX_PLAYERS
 const discussionPosts = new Map<string, number[]>()
 const httpRequests = new Map<string, number[]>()
+const HTTP_RATE_LIMIT = 20
+const HTTP_RATE_WINDOW_SECONDS = 60
 // Single-use socket-auth tickets, ~60s TTL. In-memory and process-local —
 // same ceiling as the rate-limit maps above: fine for one authoritative
 // instance, would need a shared store (e.g. Redis) to scale horizontally.
 const tickets = new Map<string, { playerId: string; roomCode: string; expiresAt: number }>()
 function requireServiceToken(request: import('node:http').IncomingMessage): boolean {
+  if (!serviceToken) return false
   const provided = Buffer.from(String(request.headers['x-service-token'] ?? ''))
   const expected = Buffer.from(serviceToken)
   return provided.length === expected.length && timingSafeEqual(provided, expected)
@@ -56,19 +62,30 @@ function allowHttpRequest(ip: string, now: number, limit: number) {
 }
 type SecretState = { game: GameState | null; discussion: DiscussionMessage[]; recentPairIds?: string[]; scores?: Record<string, number>; minorityCount?: number }
 const emptySecret: SecretState = { game: null, discussion: [], recentPairIds: [], scores: {} }
-function json(response: import('node:http').ServerResponse, status: number, body: unknown) {
+export function problemDetails(status: number, code: string) {
+  return {
+    type: `urn:between-words:error:${code.toLowerCase()}`,
+    title: 'Request failed',
+    status,
+    code,
+  }
+}
+function json(response: import('node:http').ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) {
+  const isProblem = status >= 400 && typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string'
+  const payload = isProblem ? { ...problemDetails(status, (body as { code: string }).code), ...body } : body
   response.writeHead(status, {
     'access-control-allow-credentials': 'true',
     'access-control-allow-headers': 'content-type',
     'access-control-allow-methods': 'GET, POST, OPTIONS',
     'access-control-allow-origin': origin,
     'cache-control': 'no-store',
-    'content-type': 'application/json',
+    'content-type': isProblem ? 'application/problem+json' : 'application/json',
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'no-referrer',
     vary: 'Origin',
+    ...extraHeaders,
   })
-  response.end(JSON.stringify(body))
+  response.end(JSON.stringify(payload))
 }
 async function body(request: import('node:http').IncomingMessage) {
   const chunks: Buffer[] = []
@@ -261,8 +278,13 @@ const http = createServer(async (request, response) => {
     const isInternalRoute = internalPaths.has(url.pathname) || /^\/rooms\/[A-Z2-9]{6}\/members$/.test(url.pathname)
     if (isInternalRoute && !requireServiceToken(request)) return json(response, 403, { code: 'SERVICE_TOKEN_REQUIRED' })
     const ip = clientIp(request)
-    if (request.method === 'POST' && (url.pathname === '/sessions' || url.pathname === '/rooms' || url.pathname === '/internal/tickets') && !allowHttpRequest(ip, Date.now(), 20)) {
-      return json(response, 429, { code: 'RATE_LIMITED' })
+    const isRateLimitedPath = url.pathname === '/sessions' || url.pathname === '/rooms' || url.pathname === '/internal/tickets' || /^\/rooms\/[A-Z2-9]{6}\/members$/.test(url.pathname)
+    if (request.method === 'POST' && isRateLimitedPath && !allowHttpRequest(ip, Date.now(), HTTP_RATE_LIMIT)) {
+      return json(response, 429, { code: 'RATE_LIMITED' }, {
+        'retry-after': String(HTTP_RATE_WINDOW_SECONDS),
+        'x-ratelimit-limit': String(HTTP_RATE_LIMIT),
+        'x-ratelimit-remaining': '0',
+      })
     }
     if (request.method === 'GET' && url.pathname === '/health') {
       await pool.query('select 1')
