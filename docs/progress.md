@@ -189,22 +189,31 @@ room-code mismatch are all rejected); a seeded nonzero score survives a real
 `startGame` call; a mid-game `requestRematch` is rejected with `WRONG_PHASE`
 and the live game is left running.
 
+Production verification completed for the deployed commit `65241eb`:
+
+    Vercel production: https://imposter-game-seven-sooty.vercel.app
+    unknown path: HTTP 404
+    homepage: HTTP 200 with SSR content, canonical, OG metadata, and JSON-LD
+    /robots.txt: HTTP 200, text/plain
+    /sitemap.xml: HTTP 200, application/xml
+    /llms.txt: HTTP 200, text/plain
+    /about, /contact, /privacy, /developers: HTTP 200
+    /api/sessions without a backend: HTTP 503, application/problem+json
+
+The production `NEXT_PUBLIC_SITE_URL` variable is now configured and the
+verified build is live. **Online production is still blocked:**
+`GAME_SERVER_URL`, `GAME_SERVER_SERVICE_TOKEN`, and
+`NEXT_PUBLIC_GAME_SERVER_URL` are not configured on Vercel, and the Render
+hostname named by `render.yaml` is not live (`404`). Once the real Render URL
+exists, set those three Vercel variables plus `INTERNAL_SERVICE_TOKEN` and
+`FRONTEND_ORIGIN` on Render, using matching token values.
+
 **Not yet done:**
-- **Deploy is broken in production right now regardless of the above** —
-  `vercel env ls production` returns zero env vars; the deployed client
-  bundle has `localhost:8787` baked into it (confirmed by downloading and
-  grepping the production JS). The real Render URL for `apps/game-server`
-  is still unknown — `render.yaml` names the service
-  `between-words-game-server` but that hostname isn't live on Render
-  (`x-render-routing: no-server`). Once the real URL is known: set
-  `GAME_SERVER_URL`, `GAME_SERVER_SERVICE_TOKEN`, and
-  `NEXT_PUBLIC_GAME_SERVER_URL` on Vercel (production), and
-  `INTERNAL_SERVICE_TOKEN` + `FRONTEND_ORIGIN` on Render, with matching
-  token values on both sides.
 - No real-browser click-through this session either — the Claude-in-Chrome
   extension was not connected. Everything above was verified over
-  curl/socket.io-client/vitest, not an actual browser session. Worth doing
-  once the extension is available, or once staging is reachable to a human.
+  authenticated production HTTP, curl/socket.io-client/vitest, not an actual
+  browser session. Worth doing once the extension is available, or once the
+  backend is reachable to a human.
 - Local Pass & Play's player cap was tightened from ~3–24 to 4–10 in
   `a6c8595` ("Support bounded multi-cycle games"), deliberately on both the
   engine and the local setup UI — flag to the user if a large local group
@@ -213,6 +222,6 @@ and the live game is left running.
 ## Next bounded task
 
 Get the real Render URL for `apps/game-server`, wire the Vercel/Render env
-vars listed above, and run one real multi-browser (or at least
-multi-device) online smoke test against the live production stack. Only
-after that should Phase 5 be called complete.
+vars listed above, and run one real multi-browser (or at least multi-device)
+online smoke test against the live production stack. Only after that should
+Phase 5 be called complete.
