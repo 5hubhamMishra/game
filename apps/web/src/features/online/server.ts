@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 
 /**
  * Backend-for-frontend helpers: every guest-session/room HTTP call the
@@ -28,5 +29,42 @@ export function backendFetch(path: string, init: { method: string; headers: Reco
     method: init.method,
     headers: init.headers,
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+  }).catch(() => new Response(JSON.stringify({ code: "BACKEND_UNAVAILABLE" }), {
+    status: 503,
+    headers: { "content-type": "application/problem+json" },
+  }));
+}
+
+function problem(status: number, code: string, instance: string) {
+  return {
+    type: `urn:between-words:error:${code.toLowerCase()}`,
+    title: "Request failed",
+    status,
+    detail: status === 429 ? "Too many requests; try again later." : "The request could not be completed.",
+    instance,
+    code,
+  };
+}
+
+export function problemResponse(status: number, code: string, instance: string) {
+  return new NextResponse(JSON.stringify(problem(status, code, instance)), {
+    status,
+    headers: { "content-type": "application/problem+json" },
+  });
+}
+
+export async function forwardBackendJson(upstream: Response, instance: string) {
+  const data = await upstream.json().catch(() => ({}));
+  if (upstream.ok) return NextResponse.json(data, { status: upstream.status });
+
+  const code = typeof data?.code === "string" ? data.code : `HTTP_${upstream.status}`;
+  const headers = new Headers({ "content-type": "application/problem+json" });
+  for (const name of ["retry-after", "x-ratelimit-limit", "x-ratelimit-remaining"]) {
+    const value = upstream.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return new NextResponse(JSON.stringify(problem(upstream.status, code, instance)), {
+    status: upstream.status,
+    headers,
   });
 }

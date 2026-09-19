@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
-import { backendFetch, backendHeaders, readSessionCookie } from "@/features/online/server";
+import { backendFetch, backendHeaders, forwardBackendJson, problemResponse, readSessionCookie } from "@/features/online/server";
 
 export async function POST(request: Request) {
   const session = await readSessionCookie();
-  if (!session) return NextResponse.json({ code: "SESSION_REQUIRED" }, { status: 401 });
+  if (!session) return problemResponse(401, "SESSION_REQUIRED", request.url);
 
   const body = await request.json().catch(() => ({}));
   const upstream = await backendFetch("/rooms", {
@@ -11,6 +10,5 @@ export async function POST(request: Request) {
     headers: backendHeaders(request, { "x-guest-session": session }),
     body,
   });
-  const data = await upstream.json().catch(() => ({}));
-  return NextResponse.json(data, { status: upstream.status });
+  return forwardBackendJson(upstream, request.url);
 }

@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import { backendFetch, backendHeaders, readSessionCookie } from "@/features/online/server";
+import { backendFetch, backendHeaders, forwardBackendJson, problemResponse, readSessionCookie } from "@/features/online/server";
 
 /**
  * Mints a short-lived, single-use socket-auth ticket. The browser then
@@ -8,7 +7,7 @@ import { backendFetch, backendHeaders, readSessionCookie } from "@/features/onli
  */
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const session = await readSessionCookie();
-  if (!session) return NextResponse.json({ code: "SESSION_REQUIRED" }, { status: 401 });
+  if (!session) return problemResponse(401, "SESSION_REQUIRED", request.url);
 
   const { code } = await params;
   const upstream = await backendFetch("/internal/tickets", {
@@ -16,6 +15,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     headers: backendHeaders(request),
     body: { session, roomCode: code.toUpperCase() },
   });
-  const data = await upstream.json().catch(() => ({}));
-  return NextResponse.json(data, { status: upstream.status });
+  return forwardBackendJson(upstream, request.url);
 }

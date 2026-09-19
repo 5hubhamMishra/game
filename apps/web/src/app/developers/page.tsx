@@ -46,6 +46,14 @@ export default function DevelopersPage() {
         flow, no scoped token issuance, and no MCP server — none of these are offered, rather than
         partially implemented.
       </p>
+
+      <h2 className="mt-8 font-display text-xl font-semibold">Internal API errors</h2>
+      <p className="mt-2 leading-relaxed text-muted">
+        The same-origin routes used by the web client return RFC 9457-style Problem Details for
+        failures, with an HTTP status, stable <code>code</code>, and a safe request instance. A
+        rate-limited request returns <code>429</code> with <code>Retry-After</code> when available.
+        These routes are internal and do not grant access to private room state.
+      </p>
     </div>
   );
 }
