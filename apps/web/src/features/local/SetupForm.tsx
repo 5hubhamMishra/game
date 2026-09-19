@@ -44,7 +44,13 @@ export function SetupForm() {
   const [names, setNames] = useState<RosterEntry[]>(() =>
     roster.length >= MIN_PLAYERS
       ? roster
-      : [...roster, ...Array.from({ length: MIN_PLAYERS - roster.length }, () => ({ id: newPlayerId(), name: "" }))],
+      : [
+          ...roster,
+          ...Array.from({ length: MIN_PLAYERS - roster.length }, (_, i) => ({
+            id: newPlayerId(),
+            name: `Player ${roster.length + i + 1}`,
+          })),
+        ],
   );
   const [minorityCount, setMinorityCount] = useState(prefs.minorityCount);
   const [timersOn, setTimersOn] = useState(prefs.timersOn);

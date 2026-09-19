@@ -1,9 +1,22 @@
 import { LinkButton } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  url: SITE_URL,
+  applicationCategory: "GameApplication",
+  operatingSystem: "Web/Browser",
+};
 
 export default function HomePage() {
   return (
     <div>
+      {/* eslint-disable-next-line react/no-danger -- JSON-LD is a static, developer-authored constant, not user input */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <section className="mx-auto max-w-2xl py-14 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal">Social deduction, quietly</p>
         <h1 className="mt-4 font-display text-5xl font-bold tracking-tight text-ink sm:text-6xl">

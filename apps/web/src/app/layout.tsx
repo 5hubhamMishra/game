@@ -1,15 +1,29 @@
 import type { Metadata, Viewport } from "next";
 import { TopBar } from "@/components/TopBar";
 import { Footer } from "@/components/Footer";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Between Words",
+    default: SITE_NAME,
     template: "%s — Between Words",
   },
-  description:
-    "A party game of related secret words and social deduction. Play face-to-face or in a private online room.",
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: {
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    url: "/",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {

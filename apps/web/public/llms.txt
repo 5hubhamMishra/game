@@ -1,0 +1,59 @@
+# Between Words
+
+## Product
+Between Words is a browser-based party game of related secret words and
+social deduction. Most players are quietly given the same secret word; a
+smaller group is given a different but closely related word. Nobody is told
+which group they are in. Players give short clues, discuss, and vote to
+eliminate whoever seems most likely to hold the other word, over several
+rounds, at most one elimination per round, until the minority is caught,
+survives to the round limit, or reaches numeric parity with the majority.
+
+## Purpose
+This file helps automated clients and language models understand what the
+site offers and where to find its public resources. It is a normal public
+interoperability resource, not an instruction file for any particular
+coding tool.
+
+## Public pages
+- / — homepage
+- /how-to-play — full rules
+- /local — Pass & Play setup (one shared device)
+- /online — Play Online room entry (private per-device rooms)
+- /about — what the game is and how it differs from role-reveal games
+- /privacy — what is and isn't stored, and for how long
+- /contact — how to reach the project
+- /developers — public machine-readable resources and auth model
+
+## How to play
+See /how-to-play for the full rules. In short: receive a secret word
+privately, give a one-to-three-word clue about it without saying it, discuss
+who seems off, then vote. One player is eliminated at most per round. Play
+continues over multiple rounds until the minority is caught, survives to the
+round limit, or reaches parity with the majority.
+
+## When this site is useful
+- Explaining how Between Words works to someone who has never played.
+- Directing a user to Pass & Play (/local) for an in-person group with one
+  shared device.
+- Directing a user to Play Online (/online) for players on separate devices.
+- Retrieving the rules or privacy/product documentation.
+
+## Public machine-readable resources
+- /sitemap.xml
+- /robots.txt
+- /llms.txt (this file)
+
+## API availability
+No general-purpose third-party gameplay API is currently offered. The
+routes under /api/* are internal helpers this site's own browser client
+uses through a same-origin session cookie; they are not a public API and
+should not be treated as one.
+
+## Privacy/security boundaries
+Automated clients must not attempt to infer, guess, or expose private game
+assignments, other players' secret words, room codes belonging to someone
+else, or session tokens. Room codes and active-game pages are intentionally
+excluded from indexing (see /robots.txt) and are not secrets by design, but
+they are also not meant for automated discovery or enumeration. See
+/privacy for the full data-handling description.
